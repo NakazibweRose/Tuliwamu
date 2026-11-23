@@ -6,7 +6,10 @@ from .views import (
     CaseStatusUpdateView,
     CommunityReportListCreateView,
 CommunityReportDetailView,
-CommunityReportReviewView
+CommunityReportReviewView,
+ChildRelationshipListCreateView,
+ChildRelationshipVerificationView,
+GuardianCaseFollowUpView
 )
 
 
@@ -24,5 +27,20 @@ path(
     "reports/<int:pk>/review/",
     CommunityReportReviewView.as_view(),
     name="report-review",
+),
+path(
+    "child-relationships/",
+    ChildRelationshipListCreateView.as_view(),
+    name="child-relationship-list-create",
+),
+path(
+    "child-relationships/<int:pk>/verify/",
+    ChildRelationshipVerificationView.as_view(),
+    name="child-relationship-verify",
+),
+path(
+    "guardian/cases/",
+    GuardianCaseFollowUpView.as_view(),
+    name="guardian-case-follow-up",
 ),
 ]

@@ -90,3 +90,52 @@ class CanReviewCommunityReport(BasePermission):
             request.user.is_authenticated
             and request.user.role in ("ADMIN", "POLICE", "PSWO")
         )
+
+class ChildRelationshipPermissions(BasePermission):
+    """
+    Community members can request access.
+    Officers can review relationship requests.
+    """
+
+    def has_permission(self, request, view):
+        user = request.user
+
+        if not user or not user.is_authenticated:
+            return False
+
+        if request.method in ("GET", "HEAD", "OPTIONS"):
+            return user.role in (
+                "ADMIN",
+                "POLICE",
+                "PSWO",
+                "COMMUNITY",
+            )
+
+        if request.method == "POST":
+            return user.role == "COMMUNITY"
+
+        return False
+
+    def has_object_permission(self, request, view, obj):
+        user = request.user
+
+        if user.role in ("ADMIN", "POLICE", "PSWO"):
+            return True
+
+        return obj.user_id == user.id
+
+
+class CanVerifyChildRelationship(BasePermission):
+    def has_permission(self, request, view):
+        return (
+            request.user.is_authenticated
+            and request.user.role in ("ADMIN", "POLICE", "PSWO")
+        )
+
+
+class CanViewGuardianCases(BasePermission):
+    def has_permission(self, request, view):
+        return (
+            request.user.is_authenticated
+            and request.user.role == "COMMUNITY"
+        )
