@@ -67,3 +67,49 @@ class StaffAccountCreationSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         return User.objects.create_user(**validated_data)
+
+class StaffAccountListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = (
+            "id",
+            "username",
+            "email",
+            "first_name",
+            "last_name",
+            "role",
+            "is_active",
+        )
+        read_only_fields = fields
+
+class StaffAccountStatusSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ("is_active",)
+
+    def validate(self, attrs):
+        if self.instance.role in (User.Role.ADMIN, User.Role.COMMUNITY):
+            raise serializers.ValidationError(
+                "This endpoint only manages staff accounts."
+            )
+
+        return attrs
+
+class StaffRoleUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ("role",)
+
+    def validate_role(self, value):
+        allowed_roles = [
+            User.Role.POLICE,
+            User.Role.PSWO,
+            User.Role.LEGAL_AID,
+        ]
+
+        if value not in allowed_roles:
+            raise serializers.ValidationError(
+                "Only Police, PSWO, and Legal Aid roles are allowed."
+            )
+
+        return value

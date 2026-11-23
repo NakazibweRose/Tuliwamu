@@ -8,7 +8,10 @@ from .models import User
 from .serializers import (
     CommunityRegistrationSerializer,
     CustomTokenObtainPairSerializer,
-    StaffAccountCreationSerializer
+    StaffAccountCreationSerializer,
+    StaffAccountListSerializer,
+    StaffAccountStatusSerializer,
+    StaffRoleUpdateSerializer
 )
 
 class IsAdminUser(BasePermission):
@@ -33,7 +36,36 @@ class StaffAccountCreationView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = StaffAccountCreationSerializer
     permission_classes = [IsAdminUser]
-    
+
+class StaffAccountListView(generics.ListAPIView):
+    serializer_class = StaffAccountListSerializer
+    permission_classes = [IsAdminUser]
+
+    def get_queryset(self):
+        return User.objects.exclude(
+            role__in=[User.Role.ADMIN, User.Role.COMMUNITY]
+        ).order_by("role", "username")
+
+class StaffAccountStatusView(generics.UpdateAPIView):
+    serializer_class = StaffAccountStatusSerializer
+    permission_classes = [IsAdminUser]
+    http_method_names = ["patch", "options", "head"]
+
+    def get_queryset(self):
+        return User.objects.exclude(
+            role__in=[User.Role.ADMIN, User.Role.COMMUNITY]
+        )
+
+class StaffRoleUpdateView(generics.UpdateAPIView):
+    serializer_class = StaffRoleUpdateSerializer
+    permission_classes = [IsAdminUser]
+    http_method_names = ["patch", "options", "head"]
+
+    def get_queryset(self):
+        return User.objects.exclude(
+            role__in=[User.Role.ADMIN, User.Role.COMMUNITY]
+        )
+              
 class UserProfileView(APIView):
     permission_classes = [IsAuthenticated]
 
