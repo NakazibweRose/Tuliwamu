@@ -6,6 +6,7 @@ from .views import (
     CaseStatusUpdateView,
     CommunityReportListCreateView,
 CommunityReportDetailView,
+CommunityReportReviewView
 )
 
 
@@ -19,4 +20,9 @@ urlpatterns = [
     ),
     path("reports/", CommunityReportListCreateView.as_view(), name="report-list-create"),
 path("reports/<int:pk>/", CommunityReportDetailView.as_view(), name="report-detail"),
+path(
+    "reports/<int:pk>/review/",
+    CommunityReportReviewView.as_view(),
+    name="report-review",
+),
 ]
