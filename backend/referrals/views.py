@@ -17,6 +17,4 @@ class ReferralDetailView(generics.RetrieveUpdateAPIView):
     permission_classes = [IsAuthenticated]
 
 
-class ReferralDetailView(generics.RetrieveUpdateAPIView):
-    queryset = Referral.objects.all()
-    serializer_class = ReferralSerializer
+
