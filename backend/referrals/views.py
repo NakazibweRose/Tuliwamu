@@ -194,3 +194,33 @@ class ReferralFollowUpDetailView(generics.RetrieveUpdateAPIView):
         )
 
         serializer.save(completed_at=completed_at)
+
+from django.contrib.auth import get_user_model
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+
+User = get_user_model()
+
+
+class ReferralOfficerListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        officers = User.objects.filter(
+            is_active=True,
+            role__in=["POLICE", "PSWO", "LEGAL_AID"]
+        ).order_by("role", "username")
+
+        data = [
+            {
+                "id": officer.id,
+                "username": officer.username,
+                "first_name": officer.first_name,
+                "last_name": officer.last_name,
+                "role": officer.role,
+            }
+            for officer in officers
+        ]
+
+        return Response(data)

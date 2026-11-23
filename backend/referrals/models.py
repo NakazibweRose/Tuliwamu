@@ -1,4 +1,4 @@
-
+import secrets
 from django.conf import settings
 from django.db import models
 
@@ -121,3 +121,64 @@ class ReferralFollowUp(models.Model):
 
     def __str__(self):
         return f"Follow-up for referral {self.referral_id}"
+
+
+
+def generate_report_reference():
+    return f"TUL-{secrets.token_hex(6).upper()}"
+
+
+class PublicReport(models.Model):
+    class Category(models.TextChoices):
+        PROTECTION = "PROTECTION", "Child protection concern"
+        NEGLECT = "NEGLECT", "Neglect"
+        VIOLENCE = "VIOLENCE", "Violence or abuse"
+        OTHER = "OTHER", "Other"
+
+    class ReportStatus(models.TextChoices):
+        RECEIVED = "RECEIVED", "Received"
+        UNDER_REVIEW = "UNDER_REVIEW", "Under Review"
+        REFERRED = "REFERRED", "Referred"
+        CLOSED = "CLOSED", "Closed"
+
+    reference_code = models.CharField(
+        max_length=16,
+        unique=True,
+        default=generate_report_reference,
+        editable=False,
+    )
+    category = models.CharField(
+        max_length=20,
+        choices=Category.choices,
+    )
+    district = models.CharField(max_length=100)
+    description = models.TextField()
+    contact_phone = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True,
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=ReportStatus.choices,
+        default=ReportStatus.RECEIVED,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.reference_code} - {self.get_category_display()}"
+
+
+class Station(models.Model):
+    name = models.CharField(max_length=150)
+    phone_number = models.CharField(max_length=20, unique=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
