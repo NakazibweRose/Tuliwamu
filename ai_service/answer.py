@@ -4,7 +4,10 @@ import os
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 
-from retrieve import retrieve_documents
+try:
+    from .retrieve import retrieve_documents
+except ImportError:
+    from retrieve import retrieve_documents
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -73,20 +76,42 @@ Passage:
     return "\n".join(context_parts), sources
 
 
-def answer_question(question, top_k=5):
+def answer_question(question, top_k=5, structured=False):
     """Answer a question using retrieved legal documents."""
 
     question = question.strip()
 
     if not question:
-        return "Please enter a question."
+        message = "Please enter a question."
+        if structured:
+            return {
+                "question": "",
+                "answer": message,
+                "sources": [],
+                "warnings": [],
+                "status": "invalid_request",
+            }
+        return message
 
     print("\nSearching the legal document database...")
 
     results = retrieve_documents(question, top_k=top_k)
 
     if not results:
-        return "I could not find relevant passages in the available documents."
+        message = (
+            "I could not find relevant passages in the available documents."
+        )
+        if structured:
+            return {
+                "question": question,
+                "answer": message,
+                "sources": [],
+                "warnings": [
+                    "No relevant passages were found in the available documents."
+                ],
+                "status": "no_evidence",
+            }
+        return message
 
     context, sources = build_context(results)
 
@@ -173,6 +198,25 @@ RETRIEVED DOCUMENT PASSAGES:
             for item in answer
         )
 
+    warnings = []
+
+    for source in sources:
+        if source["review_status"] != "reviewed":
+            warnings.append(
+                f"{source['id']}: The extracted text from "
+                f"{source['document']} (PDF page {source['page']}) "
+                "has not yet been checked against the original document."
+            )
+
+    if structured:
+        return {
+            "question": question,
+            "answer": str(answer),
+            "sources": sources,
+            "warnings": warnings,
+            "status": "success",
+        }
+
     output = [
         "\n" + "=" * 65,
         "TULIWAMU - AI LEGAL ASSISTANT",
@@ -191,12 +235,18 @@ RETRIEVED DOCUMENT PASSAGES:
             f"| Review status: {source['review_status']}"
         )
 
-    output.extend([
-        "\nIMPORTANT:",
-        "Retrieved passages are currently marked UNVERIFIED.",
-        "Check the original documents before relying on their legal content.",
-        "=" * 65,
-    ])
+    output.append("\nIMPORTANT:")
+
+    if warnings:
+        output.extend(warnings)
+    else:
+        output.append(
+            "The retrieved passages have been checked against their "
+            "original documents. This does not establish that the law "
+            "is current or replace professional legal review."
+        )
+
+    output.append("=" * 65)
 
     return "\n".join(output)
 
