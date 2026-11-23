@@ -62,10 +62,11 @@ class ReferralAPITests(APITestCase):
         )
 
         self.referral = Referral.objects.create(
-            case=self.case,
-            referring_institution="Police",
-            receiving_institution="Probation Office",
-            reason="Follow-up support required",
+           case=self.case,
+           referring_institution="Police",
+           receiving_institution="Probation Office",
+           receiving_officer=self.legal_aid,
+           reason="Follow-up support required",
         )
 
         self.list_url = reverse("referral-list-create")
@@ -89,13 +90,11 @@ class ReferralAPITests(APITestCase):
 
         self.assertEqual(response.status_code, 404)
 
-    def test_legal_aid_cannot_view_referrals(self):
+    def test_legal_aid_can_view_assigned_referrals(self):
         self.client.force_authenticate(user=self.legal_aid)
-
         response = self.client.get(self.list_url)
-
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data), 0)
+        self.assertEqual(len(response.data), 1)
 
     def test_police_can_create_referral_for_own_case(self):
         self.client.force_authenticate(user=self.police)
@@ -104,6 +103,7 @@ class ReferralAPITests(APITestCase):
             self.list_url,
             {
                 "case": self.case.pk,
+                "receiving_officer": self.legal_aid.pk,
                 "referring_institution": "Police",
                 "receiving_institution": "Legal Aid",
                 "reason": "Legal assistance required",
