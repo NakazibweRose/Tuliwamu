@@ -9,19 +9,19 @@ https://docs.djangoproject.com/en/6.1/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.1/ref/settings/
 """
-
+import os
+from dotenv import load_dotenv
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+load_dotenv(BASE_DIR / '.env')
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-xz8_3ot@grk^(6vxdbdloa57qju&z66@6w@s)9t0!pp_yhay^4"
-
+if not SECRET_KEY:
+    raise RuntimeError("DJANGO_SECRET_KEY is not set. Check your .env file.")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
@@ -40,9 +40,11 @@ INSTALLED_APPS = [
 
     "rest_framework",
     "corsheaders",
+    "drf_spectacular",
 
     "accounts",
     "cases",
+    "referrals",
 ]
 
 MIDDLEWARE = [
@@ -132,3 +134,11 @@ MAILERS = {
     },
 }
 AUTH_USER_MODEL = "accounts.User"
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "rest_framework.authentication.SessionAuthentication",
+        "rest_framework.authentication.BasicAuthentication",
+    ],
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+}
