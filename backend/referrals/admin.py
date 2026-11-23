@@ -5,7 +5,7 @@ from .models import Referral
 @admin.register(Referral)
 class ReferralAdmin(admin.ModelAdmin):
     list_display = (
-        'case_reference',
+        'case',
         'referring_institution',
         'receiving_institution',
         'status',
@@ -13,4 +13,8 @@ class ReferralAdmin(admin.ModelAdmin):
     )
 
     list_filter = ('status', 'referring_institution')
-    search_fields = ('case_reference', 'receiving_institution')
+    search_fields = (
+        'case__reference_number',
+        'receiving_institution',
+        'referring_institution',
+    )

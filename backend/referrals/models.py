@@ -1,4 +1,3 @@
-
 from django.db import models
 
 
@@ -11,11 +10,13 @@ class Referral(models.Model):
         COMPLETED = 'COMPLETED', 'Completed'
         REJECTED = 'REJECTED', 'Rejected'
 
-    case_reference = models.CharField(
-        max_length=50,
-        help_text="Reference number of the child protection case"
-    )
-
+    case = models.ForeignKey(
+    'cases.Case',
+    on_delete=models.PROTECT,
+    related_name='referrals',
+    null=True,
+    blank=True
+)
     referring_institution = models.CharField(max_length=150)
 
     receiving_institution = models.CharField(max_length=150)
@@ -38,4 +39,4 @@ class Referral(models.Model):
         ordering = ['-date_referred']
 
     def __str__(self):
-        return f"{self.case_reference} - {self.receiving_institution}"
+        return f"{self.case.reference_number} - {self.receiving_institution}"
