@@ -14,18 +14,30 @@ env/
 .env.*
 !.env.example
 
-# ChromaDB
+# Django
+db.sqlite3
+media/
+staticfiles/
+
+# AI / vector databases
 chroma_db/
 data/chroma_db/
 
-# Testing and cache
+# Frontend
+node_modules/
+dist/
+
+# Testing and coverage
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.coverage
+htmlcov/
 
-# IDE
+# Editors
 .vscode/
 .idea/
 
-# OS
+# Operating system
 .DS_Store
+Thumbs.db
