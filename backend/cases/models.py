@@ -5,6 +5,15 @@ from django.db import models
 
 
 class Case(models.Model):
+    class CaseCategory(models.TextChoices):
+        CHILD_PROTECTION = (
+            "CHILD_PROTECTION",
+            "Child Protection / Child Victim",
+        )
+        CHILD_IN_CONFLICT_WITH_LAW = (
+            "CHILD_IN_CONFLICT_WITH_LAW",
+            "Child in Conflict with the Law",
+        )
 
     class IncidentType(models.TextChoices):
         ABUSE = "ABUSE", "Abuse"
@@ -18,7 +27,10 @@ class Case(models.Model):
         UNDER_REVIEW = "UNDER_REVIEW", "Under Review"
         ACTIVE = "ACTIVE", "Active"
         CLOSED = "CLOSED", "Closed"
-
+    case_category = models.CharField(
+        max_length=30,
+        choices=CaseCategory.choices,
+    )
     reference_number = models.UUIDField(
         default=uuid.uuid4,
         unique=True,
@@ -63,3 +75,5 @@ class Case(models.Model):
 
     def __str__(self):
         return str(self.reference_number)
+    
+    
