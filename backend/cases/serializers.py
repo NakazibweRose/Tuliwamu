@@ -1,6 +1,5 @@
 from rest_framework import serializers
-
-from .models import Case
+from .models import Case, CommunityReport
 
 
 class CaseSerializer(serializers.ModelSerializer):
@@ -81,4 +80,25 @@ class CaseSerializer(serializers.ModelSerializer):
 class CaseStatusSerializer(serializers.ModelSerializer):
     class Meta:
         model = Case
+        fields = ("status",)
+
+
+
+class CommunityReportSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CommunityReport
+        fields = "__all__"
+        read_only_fields = (
+            "id",
+            "reference_number",
+            "reporter",
+            "child",
+            "linked_case",
+            "status",
+            "created_at",
+            "updated_at",
+        )
+class CommunityReportReviewSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CommunityReport
         fields = ("status",)

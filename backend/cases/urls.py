@@ -4,6 +4,8 @@ from .views import (
     CaseListCreateView,
     CaseDetailView,
     CaseStatusUpdateView,
+    CommunityReportListCreateView,
+CommunityReportDetailView,
 )
 
 
@@ -15,4 +17,6 @@ urlpatterns = [
         CaseStatusUpdateView.as_view(),
         name="case-status-update",
     ),
+    path("reports/", CommunityReportListCreateView.as_view(), name="report-list-create"),
+path("reports/<int:pk>/", CommunityReportDetailView.as_view(), name="report-detail"),
 ]
