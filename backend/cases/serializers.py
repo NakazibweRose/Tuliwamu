@@ -15,6 +15,52 @@ class CaseSerializer(serializers.ModelSerializer):
             "updated_at",
         )
 
+    def validate(self, attrs):
+        case_category = attrs.get(
+            "case_category",
+            getattr(self.instance, "case_category", None),
+        )
+
+        incident_type = attrs.get(
+            "incident_type",
+            getattr(self.instance, "incident_type", None),
+        )
+
+        child_protection_types = {
+            "ABUSE",
+            "NEGLECT",
+            "EXPLOITATION",
+            "VIOLENCE",
+            "OTHER",
+        }
+
+        conflict_with_law_types = {
+            "THEFT",
+            "ASSAULT",
+            "DRUG_RELATED",
+            "PROPERTY_DAMAGE",
+            "OTHER",
+        }
+
+        if case_category == Case.CaseCategory.CHILD_PROTECTION:
+            allowed_types = child_protection_types
+
+        elif case_category == Case.CaseCategory.CHILD_IN_CONFLICT_WITH_LAW:
+            allowed_types = conflict_with_law_types
+
+        else:
+            return attrs
+
+        if incident_type not in allowed_types:
+            raise serializers.ValidationError({
+                "incident_type": (
+                    "This incident type is not valid for the selected "
+                    "case category."
+                )
+            })
+
+        return attrs
+
 
 class CaseStatusSerializer(serializers.ModelSerializer):
     class Meta:

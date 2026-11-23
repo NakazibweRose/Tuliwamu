@@ -8,6 +8,7 @@ class CaseAdmin(admin.ModelAdmin):
     list_display = (
         "reference_number",
         "child_name",
+        "case_category",
         "incident_type",
         "district",
         "status",
@@ -16,6 +17,7 @@ class CaseAdmin(admin.ModelAdmin):
     )
 
     list_filter = (
+        "case_category",
         "status",
         "incident_type",
         "district",

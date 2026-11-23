@@ -2,7 +2,7 @@ import uuid
 
 from django.conf import settings
 from django.db import models
-
+from django.core.exceptions import ValidationError
 
 class Case(models.Model):
     class CaseCategory(models.TextChoices):
@@ -20,6 +20,10 @@ class Case(models.Model):
         NEGLECT = "NEGLECT", "Neglect"
         EXPLOITATION = "EXPLOITATION", "Exploitation"
         VIOLENCE = "VIOLENCE", "Violence"
+        THEFT = "THEFT", "Alleged Theft"
+        ASSAULT = "ASSAULT", "Alleged Assault"
+        DRUG_RELATED = "DRUG_RELATED", "Drug-related Allegation"
+        PROPERTY_DAMAGE = "PROPERTY_DAMAGE", "Alleged Property Damage"
         OTHER = "OTHER", "Other"
 
     class Status(models.TextChoices):
@@ -72,7 +76,41 @@ class Case(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    def clean(self):
+        super().clean()
 
+        child_protection_types = {
+            "ABUSE",
+            "NEGLECT",
+            "EXPLOITATION",
+            "VIOLENCE",
+            "OTHER",
+        }
+
+        conflict_with_law_types = {
+            "THEFT",
+            "ASSAULT",
+            "DRUG_RELATED",
+            "PROPERTY_DAMAGE",
+            "OTHER",
+        }
+
+        if self.case_category == self.CaseCategory.CHILD_PROTECTION:
+            allowed_types = child_protection_types
+
+        elif self.case_category == self.CaseCategory.CHILD_IN_CONFLICT_WITH_LAW:
+            allowed_types = conflict_with_law_types
+
+        else:
+            return
+
+        if self.incident_type not in allowed_types:
+            raise ValidationError({
+                "incident_type": (
+                    "This incident type is not valid for the selected "
+                    "case category."
+                )
+            })
     def __str__(self):
         return str(self.reference_number)
     
