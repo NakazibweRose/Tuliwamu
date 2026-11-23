@@ -79,6 +79,17 @@ class Case(models.Model):
     def clean(self):
         super().clean()
 
+        if self.assigned_officer and self.assigned_officer.role not in (
+            "POLICE",
+            "PSWO",
+        ):
+            raise ValidationError({
+                "assigned_officer": (
+                    "A case can only be assigned to a Police Officer "
+                    "or a PSWO."
+                )
+            })
+
         child_protection_types = {
             "ABUSE",
             "NEGLECT",
@@ -97,10 +108,8 @@ class Case(models.Model):
 
         if self.case_category == self.CaseCategory.CHILD_PROTECTION:
             allowed_types = child_protection_types
-
         elif self.case_category == self.CaseCategory.CHILD_IN_CONFLICT_WITH_LAW:
             allowed_types = conflict_with_law_types
-
         else:
             return
 
