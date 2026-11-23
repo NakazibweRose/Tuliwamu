@@ -1,5 +1,6 @@
 
 import { useState } from "react";
+import axios from "axios";
 import {
   Bot,
   Send,
@@ -9,7 +10,13 @@ import {
   Scale,
   FileText,
   Sparkles,
+  LoaderCircle,
+  AlertCircle,
 } from "lucide-react";
+
+const AI_API_URL =
+  import.meta.env.VITE_API_BASE_URL ||
+  "http://localhost:8000";
 
 const suggestedQuestions = [
   "What are the responsibilities of a Probation and Social Welfare Officer?",
@@ -18,42 +25,77 @@ const suggestedQuestions = [
   "Which institutions are involved in child protection in Uganda?",
 ];
 
-const demoAnswer = {
-  text:
-    "This is a demonstration response. Once connected to the legal knowledge base, the assistant will retrieve relevant information from approved Ugandan legal and child protection documents. Officers should verify the applicable law and consult the appropriate professional before taking action.",
-  sources: [
-    {
-      title: "Uganda child protection legal and policy resources",
-      description: "Demonstration source placeholder",
-    },
-  ],
-};
-
 function Assistant() {
   const [messages, setMessages] = useState([]);
   const [question, setQuestion] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSend = (text = question) => {
+  const handleSend = async (text = question) => {
     const trimmedQuestion = text.trim();
 
-    if (!trimmedQuestion) return;
+    if (!trimmedQuestion || loading) return;
 
-    setMessages((previous) => [
-      ...previous,
-      {
-        id: Date.now(),
-        role: "user",
-        text: trimmedQuestion,
-      },
-      {
-        id: Date.now() + 1,
-        role: "assistant",
-        text: demoAnswer.text,
-        sources: demoAnswer.sources,
-      },
-    ]);
+    const userMessage = {
+      id: Date.now(),
+      role: "user",
+      text: trimmedQuestion,
+    };
 
+    setMessages((previous) => [...previous, userMessage]);
     setQuestion("");
+    setLoading(true);
+
+    try {
+      const response = await axios.post(
+        `${AI_API_URL}/api/legal-assistant/ask`,
+        {
+          question: trimmedQuestion,
+          top_k: 5,
+        },
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+          timeout: 120000,
+        }
+      );
+
+      const result = response.data;
+
+      setMessages((previous) => [
+        ...previous,
+        {
+          id: Date.now() + 1,
+          role: "assistant",
+          text:
+            result.answer ||
+            "The assistant returned no answer.",
+          sources: result.sources || [],
+          warnings: result.warnings || [],
+          status: result.status || "success",
+        },
+      ]);
+    } catch (error) {
+      console.error("AI Legal Assistant error:", error);
+
+     const errorMessage =
+  error.response?.data?.detail ||
+  error.message ||
+  "Unknown AI connection error.";
+      setMessages((previous) => [
+        ...previous,
+        {
+          id: Date.now() + 1,
+          role: "assistant",
+          text: errorMessage,
+          sources: [],
+          warnings: [],
+          status: "error",
+        },
+      ]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -77,8 +119,8 @@ function Assistant() {
             Professional legal information support
           </h2>
           <p className="text-sm text-slate-500 mt-1">
-            This assistant is designed to help authorised officers locate
-            relevant legal and procedural information. It does not replace
+            This assistant helps authorised officers locate relevant
+            legal and procedural information. It does not replace
             legal professionals or make decisions about individual cases.
           </p>
         </div>
@@ -121,7 +163,8 @@ function Assistant() {
                   <button
                     key={item}
                     onClick={() => handleSend(item)}
-                    className="border border-slate-200 rounded-lg p-4 text-sm text-slate-600 hover:border-[#367C78] hover:bg-teal-50 transition-colors"
+                    disabled={loading}
+                    className="border border-slate-200 rounded-lg p-4 text-sm text-slate-600 hover:border-[#367C78] hover:bg-teal-50 transition-colors disabled:opacity-50"
                   >
                     <Sparkles
                       size={17}
@@ -137,7 +180,9 @@ function Assistant() {
               <div
                 key={message.id}
                 className={`flex gap-3 ${
-                  message.role === "user" ? "justify-end" : "justify-start"
+                  message.role === "user"
+                    ? "justify-end"
+                    : "justify-start"
                 }`}
               >
                 {message.role === "assistant" && (
@@ -165,27 +210,72 @@ function Assistant() {
                     </div>
                   )}
 
-                  <p className="text-sm leading-6">{message.text}</p>
+                  <p className="text-sm leading-6 whitespace-pre-wrap">
+                    {message.text}
+                  </p>
 
-                  {message.sources && (
+                  {message.status === "no_evidence" && (
+                    <p className="mt-3 text-xs text-amber-700">
+                      No sufficient supporting passages were found
+                      in the available documents.
+                    </p>
+                  )}
+
+                  {message.sources?.length > 0 && (
                     <div className="mt-4 border-t border-slate-200 pt-3">
-                      <p className="text-xs font-semibold text-[#19324D] mb-2">
-                        Reference materials
+                      <p className="text-xs font-semibold text-[#19324D] mb-3">
+                        Retrieved reference materials
                       </p>
 
                       {message.sources.map((source, index) => (
                         <div
-                          key={index}
-                          className="flex gap-2 items-start text-xs text-slate-500 mb-2"
+                          key={source.id || index}
+                          className="flex gap-2 items-start text-xs text-slate-500 mb-3"
                         >
-                          <FileText size={15} className="shrink-0" />
+                          <FileText
+                            size={15}
+                            className="shrink-0 mt-0.5"
+                          />
+
                           <div>
                             <p className="font-medium text-slate-700">
-                              {source.title}
+                              {source.id && `[${source.id}] `}
+                              {source.document || "Untitled document"}
                             </p>
-                            <p>{source.description}</p>
+
+                            <p>
+                              PDF page: {source.page ?? "Not specified"}
+                            </p>
+
+                            {source.category && (
+                              <p>Category: {source.category}</p>
+                            )}
+
+                            {source.review_status && (
+                              <p>
+                                Review status: {source.review_status}
+                              </p>
+                            )}
                           </div>
                         </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {message.warnings?.length > 0 && (
+                    <div className="mt-4 border-t border-amber-200 pt-3">
+                      <div className="flex gap-2 items-center text-xs font-semibold text-amber-800 mb-2">
+                        <AlertCircle size={15} />
+                        Important warnings
+                      </div>
+
+                      {message.warnings.map((warning, index) => (
+                        <p
+                          key={index}
+                          className="text-xs text-amber-700 mb-2 leading-5"
+                        >
+                          {warning}
+                        </p>
                       ))}
                     </div>
                   )}
@@ -198,6 +288,24 @@ function Assistant() {
                 )}
               </div>
             ))
+          )}
+
+          {loading && (
+            <div className="flex gap-3 items-start">
+              <div className="bg-[#19324D] text-white p-2 rounded-lg">
+                <Bot size={18} />
+              </div>
+
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex items-center gap-3">
+                <LoaderCircle
+                  size={17}
+                  className="animate-spin text-[#367C78]"
+                />
+                <p className="text-sm text-slate-500">
+                  Searching legal documents and preparing an answer...
+                </p>
+              </div>
+            </div>
           )}
         </div>
 
@@ -214,21 +322,26 @@ function Assistant() {
               value={question}
               onChange={(event) => setQuestion(event.target.value)}
               placeholder="Ask a question about child protection or juvenile justice..."
-              className="flex-1 min-w-0 border border-slate-200 rounded-lg px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-teal-100"
+              disabled={loading}
+              className="flex-1 min-w-0 border border-slate-200 rounded-lg px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-teal-100 disabled:bg-slate-50"
             />
 
             <button
               type="submit"
-              disabled={!question.trim()}
+              disabled={!question.trim() || loading}
               className="bg-[#367C78] text-white px-5 rounded-lg hover:bg-[#2d6865] disabled:opacity-40"
             >
-              <Send size={18} />
+              {loading ? (
+                <LoaderCircle size={18} className="animate-spin" />
+              ) : (
+                <Send size={18} />
+              )}
             </button>
           </form>
 
           <p className="text-xs text-slate-400 mt-3 text-center">
-            Demonstration interface. Responses and references are placeholders,
-            not verified legal advice.
+            AI-generated information must be checked against current
+            official documents and verified by authorised professionals.
           </p>
         </div>
       </div>
