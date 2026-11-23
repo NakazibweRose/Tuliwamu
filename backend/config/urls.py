@@ -27,6 +27,7 @@ from drf_spectacular.views import (
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/", include("cases.urls")),
+    path("api/accounts/", include("accounts.urls")),
     path("api/referrals/", include("referrals.urls")),
     path("api/token/", CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("api/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
