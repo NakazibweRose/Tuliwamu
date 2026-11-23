@@ -24,7 +24,23 @@ class CaseSerializer(serializers.ModelSerializer):
         incident_type = attrs.get(
             "incident_type",
             getattr(self.instance, "incident_type", None),
+            
         )
+        assigned_officer = attrs.get(
+            "assigned_officer",
+            getattr(self.instance, "assigned_officer", None),
+        )
+
+        if assigned_officer and assigned_officer.role not in (
+            "POLICE",
+            "PSWO",
+        ):
+            raise serializers.ValidationError({
+                "assigned_officer": (
+                    "A case can only be assigned to a Police Officer "
+                    "or a PSWO."
+                )
+            })
 
         child_protection_types = {
             "ABUSE",
