@@ -1,15 +1,16 @@
 
 import { Bell, UserCircle } from "lucide-react";
 
-function Navbar() {
+function Navbar({ activePage }) {
   return (
     <header className="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-8">
       <div>
         <h2 className="text-xl font-semibold text-[#19324D]">
-          Dashboard
+          {activePage || "Dashboard"}
         </h2>
+
         <p className="text-sm text-slate-500">
-          Overview of child protection and justice activities
+          Child protection and justice coordination
         </p>
       </div>
 
@@ -20,6 +21,7 @@ function Navbar() {
 
         <div className="flex items-center gap-2">
           <UserCircle size={34} className="text-[#367C78]" />
+
           <div>
             <p className="text-sm font-medium text-[#19324D]">
               Officer
