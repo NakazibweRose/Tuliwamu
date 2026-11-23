@@ -6,9 +6,11 @@ from django.urls import reverse
 from rest_framework.test import APITestCase
 
 from cases.models import Case
-from .models import Referral
-
-
+from .models import (
+    Referral,
+    ReferralStatusHistory,
+    ReferralFollowUp,
+)
 User = get_user_model()
 
 
@@ -73,6 +75,10 @@ class ReferralAPITests(APITestCase):
         self.detail_url = reverse(
             "referral-detail",
             kwargs={"pk": self.referral.pk},
+        )
+
+        self.follow_up_list_url = reverse(
+            "follow-up-list-create"
         )
 
     def test_police_only_sees_own_referrals(self):
@@ -169,3 +175,118 @@ class ReferralAPITests(APITestCase):
 
         self.referral.refresh_from_db()
         self.assertEqual(self.referral.status, "ACCEPTED")
+
+        history = ReferralStatusHistory.objects.get(referral=self.referral)
+
+        self.assertEqual(history.old_status, "PENDING")
+        self.assertEqual(history.new_status, "ACCEPTED")
+        self.assertEqual(history.changed_by, self.admin)
+
+    def test_receiving_officer_can_accept_referral(self):
+        self.client.force_authenticate(user=self.legal_aid)
+
+        response = self.client.patch(
+            self.detail_url,
+            {"status": "ACCEPTED"},
+            format="json",
+       )
+
+        self.assertEqual(response.status_code, 200)
+
+        self.referral.refresh_from_db()
+        self.assertEqual(self.referral.status, "ACCEPTED")
+
+        history = ReferralStatusHistory.objects.get(referral=self.referral)
+
+        self.assertEqual(history.old_status, "PENDING")
+        self.assertEqual(history.new_status, "ACCEPTED")
+        self.assertEqual(history.changed_by, self.legal_aid)
+
+    def test_police_can_create_follow_up(self):
+        self.client.force_authenticate(user=self.police)
+
+        response = self.client.post(
+            self.follow_up_list_url,
+            {
+                "referral": self.referral.pk,
+                "assigned_to": self.legal_aid.pk,
+                "due_date": "2030-01-01",
+                "notes": "Check on referral progress",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(
+            ReferralFollowUp.objects.count(),
+            1,
+        )
+
+    def test_unrelated_police_cannot_view_follow_up(self):
+        follow_up = ReferralFollowUp.objects.create(
+            referral=self.referral,
+            assigned_to=self.legal_aid,
+            due_date=date(2030, 1, 1),
+            notes="Follow-up task",
+        )
+
+        self.client.force_authenticate(user=self.other_police)
+
+        url = reverse(
+            "follow-up-detail",
+            kwargs={"pk": follow_up.pk},
+        )
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_assigned_officer_can_complete_follow_up(self):
+        follow_up = ReferralFollowUp.objects.create(
+            referral=self.referral,
+            assigned_to=self.legal_aid,
+            due_date=date(2030, 1, 1),
+            notes="Follow-up task",
+        )
+
+        self.client.force_authenticate(user=self.legal_aid)
+
+        url = reverse(
+            "follow-up-detail",
+            kwargs={"pk": follow_up.pk},
+        )
+
+        response = self.client.patch(
+            url,
+            {"is_completed": True},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        follow_up.refresh_from_db()
+
+        self.assertTrue(follow_up.is_completed)
+        self.assertIsNotNone(follow_up.completed_at)
+
+    def test_admin_can_filter_overdue_follow_ups(self):
+        overdue_follow_up = ReferralFollowUp.objects.create(
+            referral=self.referral,
+            assigned_to=self.legal_aid,
+            due_date=date(2020, 1, 1),
+            notes="Overdue task",
+        )
+
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.get(
+            self.follow_up_list_url,
+            {"overdue": "true"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(
+            response.data[0]["id"],
+            overdue_follow_up.pk,
+        )

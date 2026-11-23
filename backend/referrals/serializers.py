@@ -4,7 +4,7 @@ from django.db.models import Q
 from rest_framework import serializers
 
 from cases.models import Case
-from .models import Referral
+from .models import Referral, ReferralFollowUp
 
 User = get_user_model()
 
@@ -128,3 +128,52 @@ class ReferralSerializer(serializers.ModelSerializer):
                 })
 
         return attrs
+
+class ReferralFollowUpSerializer(serializers.ModelSerializer):
+    assigned_to = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.filter(
+            is_active=True,
+            role__in=["POLICE", "PSWO", "LEGAL_AID"]
+        )
+    )
+
+    class Meta:
+        model = ReferralFollowUp
+        fields = [
+            "id",
+            "referral",
+            "assigned_to",
+            "due_date",
+            "notes",
+            "is_completed",
+            "completed_at",
+            "created_at",
+        ]
+        read_only_fields = [
+            "id",
+            "completed_at",
+            "created_at",
+        ]
+
+    def validate_referral(self, referral):
+        request = self.context.get("request")
+
+        if request is None:
+            return referral
+
+        user = request.user
+
+        if user.role == "ADMIN":
+            return referral
+
+        if (
+            referral.referred_by_id == user.id
+            or referral.receiving_officer_id == user.id
+            or referral.case.created_by_id == user.id
+            or referral.case.assigned_officer_id == user.id
+        ):
+            return referral
+
+        raise serializers.ValidationError(
+            "You do not have permission to create a follow-up for this referral."
+        )
