@@ -82,7 +82,17 @@ class CaseStatusSerializer(serializers.ModelSerializer):
         model = Case
         fields = ("status",)
 
+class CaseAssignmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Case
+        fields = ("assigned_officer",)
 
+    def validate_assigned_officer(self, value):
+        if value.role not in ("POLICE", "PSWO"):
+            raise serializers.ValidationError(
+                "Cases can only be assigned to Police Officers or PSWOs."
+            )
+        return value
 
 class CommunityReportSerializer(serializers.ModelSerializer):
     class Meta:

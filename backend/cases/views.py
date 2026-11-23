@@ -10,7 +10,8 @@ from .serializers import (
     CommunityReportReviewSerializer,
     ChildRelationshipSerializer,
     ChildRelationshipVerificationSerializer,
-    GuardianCaseSummarySerializer
+    GuardianCaseSummarySerializer,
+    CaseAssignmentSerializer
 )
 from .permissions import (
     CasePermissions,
@@ -29,11 +30,34 @@ class CaseListCreateView(generics.ListCreateAPIView):
         user = self.request.user
 
         if user.role == "ADMIN":
-            return Case.objects.all()
+            queryset = Case.objects.all()
+        else:
+            queryset = Case.objects.filter(
+                Q(created_by=user) | Q(assigned_officer=user)
+            )
 
-        return Case.objects.filter(
-            Q(created_by=user) | Q(assigned_officer=user)
-        )
+        search = self.request.query_params.get("search")
+        status = self.request.query_params.get("status")
+        category = self.request.query_params.get("case_category")
+        district = self.request.query_params.get("district")
+
+        if search:
+            queryset = queryset.filter(
+                Q(child_name__icontains=search)
+                | Q(district__icontains=search)
+                | Q(description__icontains=search)
+            )
+
+        if status:
+            queryset = queryset.filter(status=status)
+
+        if category:
+            queryset = queryset.filter(case_category=category)
+
+        if district:
+            queryset = queryset.filter(district__icontains=district)
+
+        return queryset
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
@@ -70,6 +94,21 @@ class CaseStatusUpdateView(generics.UpdateAPIView):
         )
 
 
+
+class CaseAssignmentView(generics.UpdateAPIView):
+    queryset = Case.objects.all()
+    serializer_class = CaseAssignmentSerializer
+    permission_classes = [IsAuthenticated]
+    http_method_names = ["patch", "options", "head"]
+
+    def get_permissions(self):
+        from rest_framework.permissions import BasePermission
+
+        class IsAdminRole(BasePermission):
+            def has_permission(self, request, view):
+                return request.user.role == "ADMIN"
+
+        return [IsAuthenticated(), IsAdminRole()]
 class CommunityReportListCreateView(generics.ListCreateAPIView):
     serializer_class = CommunityReportSerializer
     permission_classes = [IsAuthenticated, CommunityReportPermissions]

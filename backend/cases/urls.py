@@ -9,7 +9,8 @@ CommunityReportDetailView,
 CommunityReportReviewView,
 ChildRelationshipListCreateView,
 ChildRelationshipVerificationView,
-GuardianCaseFollowUpView
+GuardianCaseFollowUpView,
+CaseAssignmentView
 )
 
 
@@ -42,5 +43,10 @@ path(
     "guardian/cases/",
     GuardianCaseFollowUpView.as_view(),
     name="guardian-case-follow-up",
+),
+path(
+    "cases/<int:pk>/assign/",
+    CaseAssignmentView.as_view(),
+    name="case-assignment",
 ),
 ]
