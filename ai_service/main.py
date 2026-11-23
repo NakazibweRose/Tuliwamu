@@ -80,6 +80,7 @@ def health_check():
     }
 
 
+@app.post("/ask")
 @app.post("/api/legal-assistant/ask")
 def ask_legal_question(payload: LegalQuestion):
     try:
@@ -96,3 +97,4 @@ def ask_legal_question(payload: LegalQuestion):
             status_code=500,
             detail="The legal assistant could not process your question. Please try again.",
         )
+
