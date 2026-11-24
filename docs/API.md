@@ -15,17 +15,21 @@ Legend: ✅ exists on `develop` · 🛠 to build (owner) · 🗑 to be removed (
 | GET | `/api/accounts/staff/list/` | ADMIN | ✅ |
 | PATCH | `/api/accounts/staff/<id>/status/` · `/role/` | ADMIN | ✅ |
 | GET/POST | `/api/accounts/institutions/?type=LEGAL_AID` | GET: staff · POST: ADMIN | ✅ |
-| POST | `/api/accounts/register/` | public community sign-up | 🗑 parked |
 
 ## Cases — Mary
 | Method | Path | Who | Status |
 |---|---|---|---|
-| GET/POST | `/api/cases/?search=&status=&case_category=&district=` | POLICE, PSWO create; list is need-to-know | ✅ |
-| GET/PATCH | `/api/cases/<id>/` | need-to-know | ✅ (🛠 minimised serializer for receivers) |
+| GET/POST | `/api/cases/?search=&status=&case_category=&district=` | POLICE, PSWO, ADMIN create. Readers: ADMIN, POLICE, PSWO, LEGAL_AID, SERVICE_PROVIDER, each seeing only their cases. OVERSIGHT → 403 | ✅ |
+| GET/PATCH | `/api/cases/<id>/` | GET: need-to-know (see below). PATCH: ADMIN | ✅ |
 | PATCH | `/api/cases/<id>/status/` | ADMIN or assigned officer | ✅ |
 | PATCH | `/api/cases/<id>/assign/` | ADMIN | ✅ |
-| GET | `/api/cases/<id>/access-log/` | ADMIN, assigned officer | 🛠 Mary |
-| `/api/reports/…`, `/api/child-relationships/…`, `/api/guardian/cases/` | | | 🗑 parked (replaced by public reports below) |
+| GET | `/api/cases/<id>/access-log/` | ADMIN, registering or assigned officer → `[{user, user_role, action, detail, created_at}]` | ✅ |
+
+**Need-to-know case view.** Every case has `identity_visible`.
+- `true` (admin, registering/assigned officer, or a receiver whose referral is ACCEPTED/IN_PROGRESS/COMPLETED): the full record.
+- `false` (a receiver before accepting): only `id, reference_number, case_category, incident_type, age_band, district, status, created_at, identity_visible`. **No name, no description.** The frontend should show "Identity hidden until you accept the referral".
+
+Receivers' `?search=` matches district only. Every case view and change is written to the audit log.
 
 ## Referrals & follow-ups — Rose
 | Method | Path | Who | Status |

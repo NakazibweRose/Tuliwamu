@@ -17,27 +17,6 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         return data
 
 
-class CommunityRegistrationSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, min_length=8)
-
-    class Meta:
-        model = User
-        fields = (
-            "id",
-            "username",
-            "email",
-            "first_name",
-            "last_name",
-            "password",
-        )
-        read_only_fields = ("id",)
-
-    def create(self, validated_data):
-        return User.objects.create_user(
-            **validated_data,
-            role=User.Role.COMMUNITY,
-        )
-
 class StaffAccountCreationSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
 
@@ -91,7 +70,7 @@ class StaffAccountStatusSerializer(serializers.ModelSerializer):
         fields = ("is_active",)
 
     def validate(self, attrs):
-        if self.instance.role in (User.Role.ADMIN, User.Role.COMMUNITY):
+        if self.instance.role not in User.STAFF_ROLES:
             raise serializers.ValidationError(
                 "This endpoint only manages staff accounts."
             )
