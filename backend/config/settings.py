@@ -25,7 +25,12 @@ if not SECRET_KEY:
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    "localhost",
+    "127.0.0.1",
+    "uprising-snowbird-parish.ngrok-free.dev",
+
+]
 
 
 # Application definition
@@ -40,6 +45,7 @@ INSTALLED_APPS = [
 
     "rest_framework",
     "corsheaders",
+    "drf_spectacular",
 
     "accounts",
     "cases",
@@ -133,3 +139,11 @@ MAILERS = {
     },
 }
 AUTH_USER_MODEL = "accounts.User"
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "rest_framework.authentication.SessionAuthentication",
+        "rest_framework.authentication.BasicAuthentication",
+    ],
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+}
