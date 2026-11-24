@@ -150,3 +150,13 @@ class SuperuserRoleTests(APITestCase):
         user = User.objects.create_user(username="norole", password="x")
         self.client.force_authenticate(user)
         self.assertEqual(self.client.get("/api/cases/").status_code, status.HTTP_403_FORBIDDEN)
+
+
+class SeedDemoTests(APITestCase):
+    def test_seed_demo_runs_twice(self):
+        from django.core.management import call_command
+
+        call_command("seed_demo", stdout=open("/dev/null", "w"))
+        call_command("seed_demo", "--reset", stdout=open("/dev/null", "w"))
+        self.assertEqual(User.objects.filter(role="OVERSIGHT").count(), 1)
+        self.assertEqual(Case.objects.count(), 8)
