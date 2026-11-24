@@ -1,7 +1,7 @@
 
-import { Bell, UserCircle } from "lucide-react";
+import { Bell, UserCircle, LogOut } from "lucide-react";
 
-function Navbar({ activePage }) {
+function Navbar({ activePage, user, onLogout }) {
   return (
     <header className="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-8">
       <div>
@@ -15,7 +15,11 @@ function Navbar({ activePage }) {
       </div>
 
       <div className="flex items-center gap-5">
-        <button className="text-slate-500 hover:text-[#367C78]">
+        <button
+          type="button"
+          className="text-slate-500 hover:text-[#367C78]"
+          aria-label="Notifications"
+        >
           <Bell size={21} />
         </button>
 
@@ -24,13 +28,22 @@ function Navbar({ activePage }) {
 
           <div>
             <p className="text-sm font-medium text-[#19324D]">
-              Officer
+              {user?.first_name || user?.username || "User"}
             </p>
             <p className="text-xs text-slate-500">
-              Child Protection
+              {user?.role || "Authorised User"}
             </p>
           </div>
         </div>
+
+        <button
+          type="button"
+          onClick={onLogout}
+          title="Sign out"
+          className="text-slate-500 hover:text-red-600"
+        >
+          <LogOut size={20} />
+        </button>
       </div>
     </header>
   );

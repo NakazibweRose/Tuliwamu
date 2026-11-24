@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Search,
   Plus,
@@ -12,50 +12,7 @@ import {
   FileText,
   Send,
 } from "lucide-react";
-
-// Temporary demo cases.
-// These will eventually come from GET /api/cases/
-const demoCases = [
-  { id: 1, reference: "TUL-001" },
-  { id: 2, reference: "TUL-002" },
-  { id: 3, reference: "TUL-003" },
-];
-
-const initialReferrals = [
-  {
-    id: 1,
-    case: 1,
-    case_reference: "TUL-001",
-    referring_institution: "Police Child and Family Protection Unit",
-    receiving_institution: "Probation and Social Welfare Office",
-    date_referred: "2026-11-18",
-    status: "ACCEPTED",
-    reason: "Follow-up and child protection assessment",
-    response_notes: "Referred for assessment and further support.",
-  },
-  {
-    id: 2,
-    case: 2,
-    case_reference: "TUL-002",
-    referring_institution: "Probation and Social Welfare Office",
-    receiving_institution: "Legal Aid Provider",
-    date_referred: "2026-11-20",
-    status: "PENDING",
-    reason: "Legal assistance and guidance",
-    response_notes: "",
-  },
-  {
-    id: 3,
-    case: 3,
-    case_reference: "TUL-003",
-    referring_institution: "Police Child and Family Protection Unit",
-    receiving_institution: "Healthcare Facility",
-    date_referred: "2026-11-21",
-    status: "COMPLETED",
-    reason: "Further assessment and follow-up",
-    response_notes: "Referral process completed.",
-  },
-];
+import api from "../api";
 
 const institutions = [
   "Police Child and Family Protection Unit",
@@ -81,9 +38,78 @@ const statusStyles = {
   COMPLETED: "bg-emerald-50 text-emerald-700",
 };
 
+function getList(data) {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.results)) return data.results;
+  return [];
+}
+
+function getErrorMessage(error) {
+  const data = error.response?.data;
+
+  if (typeof data === "string") return data;
+
+  if (data && typeof data === "object") {
+    return Object.entries(data)
+      .map(([field, messages]) => {
+        const message = Array.isArray(messages)
+          ? messages.join(", ")
+          : typeof messages === "object"
+            ? JSON.stringify(messages)
+            : messages;
+
+        return `${field}: ${message}`;
+      })
+      .join(" | ");
+  }
+
+  return error.message || "Something went wrong. Please try again.";
+}
+
+function formatCaseReference(reference) {
+  if (!reference) return "—";
+
+  return `CASE-${String(reference).slice(0, 8).toUpperCase()}`;
+}
+
+function formatDate(date) {
+  if (!date) return "—";
+
+  return new Date(date).toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function formatReferralId(id) {
+  return `REF-${String(id).padStart(3, "0")}`;
+}
+
+function getOfficerName(officerId, officers) {
+  const officer = officers.find(
+    (item) => Number(item.id) === Number(officerId)
+  );
+
+  if (!officer) return officerId ? `Staff #${officerId}` : "—";
+
+  const fullName = `${officer.first_name || ""} ${
+    officer.last_name || ""
+  }`.trim();
+
+  return fullName || officer.username;
+}
+
 function Referrals() {
-  const [cases] = useState(demoCases);
-  const [referrals, setReferrals] = useState(initialReferrals);
+  const [cases, setCases] = useState([]);
+  const [referrals, setReferrals] = useState([]);
+  const [officers, setOfficers] = useState([]);
+
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [formError, setFormError] = useState("");
+
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [showForm, setShowForm] = useState(false);
@@ -91,10 +117,45 @@ function Referrals() {
 
   const [formData, setFormData] = useState({
     case: "",
+    receiving_officer: "",
     referring_institution: "",
     receiving_institution: "",
     reason: "",
   });
+
+  async function loadData() {
+    setLoading(true);
+    setError("");
+
+    try {
+      const [referralResponse, caseResponse, staffResponse] =
+        await Promise.all([
+          api.get("/api/referrals/"),
+          api.get("/api/cases/"),
+          api.get("/api/accounts/staff/list/"),
+        ]);
+
+      setReferrals(getList(referralResponse.data));
+      setCases(getList(caseResponse.data));
+
+      const activeOfficers = getList(staffResponse.data).filter(
+        (staff) =>
+          staff.is_active &&
+          ["POLICE", "PSWO", "LEGAL_AID"].includes(staff.role)
+      );
+
+      setOfficers(activeOfficers);
+    } catch (requestError) {
+      console.error("Failed to load referral data:", requestError);
+      setError(getErrorMessage(requestError));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadData();
+  }, []);
 
   const pendingCount = referrals.filter(
     (referral) => referral.status === "PENDING"
@@ -111,11 +172,19 @@ function Referrals() {
   const filteredReferrals = referrals.filter((referral) => {
     const search = searchTerm.toLowerCase();
 
+    const caseReference = String(
+      referral.case_reference || ""
+    ).toLowerCase();
+
     const matchesSearch =
       String(referral.id).includes(search) ||
-      referral.case_reference.toLowerCase().includes(search) ||
-      referral.receiving_institution.toLowerCase().includes(search) ||
-      referral.referring_institution.toLowerCase().includes(search);
+      caseReference.includes(search) ||
+      String(referral.receiving_institution || "")
+        .toLowerCase()
+        .includes(search) ||
+      String(referral.referring_institution || "")
+        .toLowerCase()
+        .includes(search);
 
     const matchesStatus =
       statusFilter === "ALL" || referral.status === statusFilter;
@@ -135,47 +204,45 @@ function Referrals() {
   function resetForm() {
     setFormData({
       case: "",
+      receiving_officer: "",
       referring_institution: "",
       receiving_institution: "",
       reason: "",
     });
+
+    setFormError("");
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
+    setFormError("");
 
-    const selectedCase = cases.find(
-      (item) => item.id === Number(formData.case)
-    );
+    if (!formData.case || !formData.receiving_officer) {
+      setFormError("Please select a case and receiving officer.");
+      return;
+    }
 
-    if (!selectedCase) return;
+    setSubmitting(true);
 
-    // This object follows the backend referral field names.
-    const newReferral = {
-      id: Date.now(),
-      case: selectedCase.id,
-      case_reference: selectedCase.reference,
-      referring_institution: formData.referring_institution,
-      receiving_institution: formData.receiving_institution,
-      reason: formData.reason,
-      status: "PENDING",
-      response_notes: "",
-      date_referred: new Date().toISOString(),
-    };
+    try {
+      await api.post("/api/referrals/", {
+        case: Number(formData.case),
+        receiving_officer: Number(formData.receiving_officer),
+        referring_institution: formData.referring_institution,
+        receiving_institution: formData.receiving_institution,
+        reason: formData.reason.trim(),
+      });
 
-    setReferrals((previous) => [newReferral, ...previous]);
-    resetForm();
-    setShowForm(false);
-  }
+      resetForm();
+      setShowForm(false);
 
-  function formatDate(date) {
-    if (!date) return "—";
-
-    return new Date(date).toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
+      await loadData();
+    } catch (requestError) {
+      console.error("Failed to create referral:", requestError);
+      setFormError(getErrorMessage(requestError));
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -192,13 +259,30 @@ function Referrals() {
         </div>
 
         <button
-          onClick={() => setShowForm(true)}
+          onClick={() => {
+            resetForm();
+            setShowForm(true);
+          }}
           className="flex items-center justify-center gap-2 bg-[#367C78] hover:bg-[#286662] text-white px-5 py-3 rounded-lg text-sm font-medium transition"
         >
           <Plus size={18} />
           Create Referral
         </button>
       </div>
+
+      {/* Loading and API errors */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-4 text-sm">
+          <p className="font-medium">Unable to load referral information.</p>
+          <p className="mt-1">{error}</p>
+          <button
+            onClick={loadData}
+            className="mt-3 underline font-medium"
+          >
+            Try again
+          </button>
+        </div>
+      )}
 
       {/* Summary cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
@@ -208,9 +292,11 @@ function Referrals() {
             <ArrowLeftRight className="text-[#367C78]" size={21} />
           </div>
           <h2 className="text-3xl font-bold text-[#19324D] mt-4">
-            {referrals.length}
+            {loading ? "—" : referrals.length}
           </h2>
-          <p className="text-xs text-slate-500 mt-2">All recorded referrals</p>
+          <p className="text-xs text-slate-500 mt-2">
+            All recorded referrals
+          </p>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-xl p-5">
@@ -219,9 +305,11 @@ function Referrals() {
             <Clock className="text-amber-600" size={21} />
           </div>
           <h2 className="text-3xl font-bold text-[#19324D] mt-4">
-            {pendingCount}
+            {loading ? "—" : pendingCount}
           </h2>
-          <p className="text-xs text-slate-500 mt-2">Awaiting a response</p>
+          <p className="text-xs text-slate-500 mt-2">
+            Awaiting a response
+          </p>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-xl p-5">
@@ -230,9 +318,11 @@ function Referrals() {
             <Building2 className="text-blue-600" size={21} />
           </div>
           <h2 className="text-3xl font-bold text-[#19324D] mt-4">
-            {acceptedCount}
+            {loading ? "—" : acceptedCount}
           </h2>
-          <p className="text-xs text-slate-500 mt-2">Received by institutions</p>
+          <p className="text-xs text-slate-500 mt-2">
+            Received by institutions
+          </p>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-xl p-5">
@@ -241,9 +331,11 @@ function Referrals() {
             <CheckCircle className="text-emerald-600" size={21} />
           </div>
           <h2 className="text-3xl font-bold text-[#19324D] mt-4">
-            {completedCount}
+            {loading ? "—" : completedCount}
           </h2>
-          <p className="text-xs text-slate-500 mt-2">Completed referrals</p>
+          <p className="text-xs text-slate-500 mt-2">
+            Completed referrals
+          </p>
         </div>
       </div>
 
@@ -301,57 +393,78 @@ function Referrals() {
             </thead>
 
             <tbody className="divide-y divide-slate-100">
-              {filteredReferrals.map((referral) => (
-                <tr key={referral.id} className="hover:bg-slate-50">
-                  <td className="px-5 py-4 text-sm font-medium text-[#19324D]">
-                    REF-{String(referral.id).padStart(3, "0")}
-                  </td>
-                  <td className="px-5 py-4 text-sm text-slate-600">
-                    {referral.case_reference}
-                  </td>
-                  <td className="px-5 py-4 text-sm text-slate-600 min-w-56">
-                    {referral.receiving_institution}
-                  </td>
-                  <td className="px-5 py-4 text-sm text-slate-600 whitespace-nowrap">
-                    {formatDate(referral.date_referred)}
-                  </td>
-                  <td className="px-5 py-4">
-                    <span
-                      className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        statusStyles[referral.status]
-                      }`}
-                    >
-                      {statusLabels[referral.status]}
-                    </span>
-                  </td>
-                  <td className="px-5 py-4">
-                    <button
-                      onClick={() => setSelectedReferral(referral)}
-                      className="flex items-center gap-2 text-[#367C78] hover:text-[#19324D] text-sm font-medium"
-                    >
-                      <Eye size={17} />
-                      View
-                    </button>
-                  </td>
-                </tr>
-              ))}
-
-              {filteredReferrals.length === 0 && (
+              {loading ? (
                 <tr>
                   <td
                     colSpan="6"
                     className="text-center py-10 text-sm text-slate-500"
                   >
-                    No referrals found. Try another search or filter.
+                    Loading referrals...
                   </td>
                 </tr>
+              ) : (
+                <>
+                  {filteredReferrals.map((referral) => (
+                    <tr key={referral.id} className="hover:bg-slate-50">
+                      <td className="px-5 py-4 text-sm font-medium text-[#19324D]">
+                        {formatReferralId(referral.id)}
+                      </td>
+
+                      <td className="px-5 py-4 text-sm text-slate-600">
+                        {formatCaseReference(referral.case_reference)}
+                      </td>
+
+                      <td className="px-5 py-4 text-sm text-slate-600 min-w-56">
+                        {referral.receiving_institution}
+                      </td>
+
+                      <td className="px-5 py-4 text-sm text-slate-600 whitespace-nowrap">
+                        {formatDate(referral.date_referred)}
+                      </td>
+
+                      <td className="px-5 py-4">
+                        <span
+                          className={`px-3 py-1 rounded-full text-xs font-medium ${
+                            statusStyles[referral.status] ||
+                            "bg-slate-100 text-slate-600"
+                          }`}
+                        >
+                          {statusLabels[referral.status] ||
+                            referral.status}
+                        </span>
+                      </td>
+
+                      <td className="px-5 py-4">
+                        <button
+                          onClick={() => setSelectedReferral(referral)}
+                          className="flex items-center gap-2 text-[#367C78] hover:text-[#19324D] text-sm font-medium"
+                        >
+                          <Eye size={17} />
+                          View
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+
+                  {filteredReferrals.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan="6"
+                        className="text-center py-10 text-sm text-slate-500"
+                      >
+                        No referrals found. Try another search or filter.
+                      </td>
+                    </tr>
+                  )}
+                </>
               )}
             </tbody>
           </table>
         </div>
 
         <div className="px-5 py-4 border-t border-slate-100 text-xs text-slate-500">
-          Showing {filteredReferrals.length} of {referrals.length} referrals
+          Showing {loading ? "—" : filteredReferrals.length} of{" "}
+          {loading ? "—" : referrals.length} referrals
         </div>
       </div>
 
@@ -368,16 +481,30 @@ function Referrals() {
                   Send a registered case to a responsible institution.
                 </p>
               </div>
-              <button onClick={() => setShowForm(false)}>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowForm(false);
+                  resetForm();
+                }}
+              >
                 <X className="text-slate-500" />
               </button>
             </div>
 
             <form onSubmit={handleSubmit} className="p-6 space-y-5">
+              {formError && (
+                <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 text-sm">
+                  {formError}
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
                   Registered Case
                 </label>
+
                 <select
                   name="case"
                   value={formData.case}
@@ -386,21 +513,26 @@ function Referrals() {
                   className="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#367C78]/30"
                 >
                   <option value="">Select a registered case</option>
+
                   {cases.map((item) => (
                     <option key={item.id} value={item.id}>
-                      {item.reference}
+                      {formatCaseReference(item.reference_number)}
                     </option>
                   ))}
                 </select>
-                <p className="text-xs text-slate-500 mt-2">
-                  Only cases available to your account should appear here.
-                </p>
+
+                {cases.length === 0 && (
+                  <p className="text-xs text-amber-700 mt-2">
+                    No registered cases are available to your account.
+                  </p>
+                )}
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
                   Referring Institution
                 </label>
+
                 <select
                   name="referring_institution"
                   value={formData.referring_institution}
@@ -409,6 +541,7 @@ function Referrals() {
                   className="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#367C78]/30"
                 >
                   <option value="">Select referring institution</option>
+
                   {institutions.map((institution) => (
                     <option key={institution} value={institution}>
                       {institution}
@@ -421,6 +554,7 @@ function Referrals() {
                 <label className="block text-sm font-medium text-slate-700 mb-2">
                   Receiving Institution
                 </label>
+
                 <select
                   name="receiving_institution"
                   value={formData.receiving_institution}
@@ -429,6 +563,7 @@ function Referrals() {
                   className="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#367C78]/30"
                 >
                   <option value="">Select receiving institution</option>
+
                   {institutions.map((institution) => (
                     <option key={institution} value={institution}>
                       {institution}
@@ -439,8 +574,44 @@ function Referrals() {
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Receiving Officer
+                </label>
+
+                <select
+                  name="receiving_officer"
+                  value={formData.receiving_officer}
+                  onChange={handleInputChange}
+                  required
+                  className="w-full border border-slate-200 rounded-lg px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-[#367C78]/30"
+                >
+                  <option value="">Select receiving officer</option>
+
+                  {officers.map((officer) => {
+                    const name =
+                      `${officer.first_name || ""} ${
+                        officer.last_name || ""
+                      }`.trim() || officer.username;
+
+                    return (
+                      <option key={officer.id} value={officer.id}>
+                        {name} ({officer.role.replace("_", " ")})
+                      </option>
+                    );
+                  })}
+                </select>
+
+                {officers.length === 0 && (
+                  <p className="text-xs text-amber-700 mt-2">
+                    No active Police, PSWO or Legal Aid staff accounts are available.
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
                   Reason for Referral
                 </label>
+
                 <textarea
                   name="reason"
                   value={formData.reason}
@@ -463,12 +634,18 @@ function Referrals() {
                 >
                   Cancel
                 </button>
+
                 <button
                   type="submit"
-                  className="flex items-center gap-2 px-5 py-3 bg-[#367C78] hover:bg-[#286662] text-white rounded-lg text-sm font-medium"
+                  disabled={
+                    submitting ||
+                    cases.length === 0 ||
+                    officers.length === 0
+                  }
+                  className="flex items-center gap-2 px-5 py-3 bg-[#367C78] hover:bg-[#286662] disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium"
                 >
                   <Send size={16} />
-                  Create Referral
+                  {submitting ? "Creating..." : "Create Referral"}
                 </button>
               </div>
             </form>
@@ -486,9 +663,10 @@ function Referrals() {
                   Referral Details
                 </h2>
                 <p className="text-sm text-slate-500 mt-1">
-                  REF-{String(selectedReferral.id).padStart(3, "0")}
+                  {formatReferralId(selectedReferral.id)}
                 </p>
               </div>
+
               <button onClick={() => setSelectedReferral(null)}>
                 <X className="text-slate-500" />
               </button>
@@ -497,12 +675,15 @@ function Referrals() {
             <div className="p-6 space-y-5">
               <div className="flex justify-between items-center">
                 <span className="text-sm text-slate-500">Status</span>
+
                 <span
                   className={`px-3 py-1 rounded-full text-xs font-medium ${
-                    statusStyles[selectedReferral.status]
+                    statusStyles[selectedReferral.status] ||
+                    "bg-slate-100 text-slate-600"
                   }`}
                 >
-                  {statusLabels[selectedReferral.status]}
+                  {statusLabels[selectedReferral.status] ||
+                    selectedReferral.status}
                 </span>
               </div>
 
@@ -511,7 +692,7 @@ function Referrals() {
                 <div>
                   <p className="text-xs text-slate-500">Case Reference</p>
                   <p className="text-sm font-medium text-[#19324D]">
-                    {selectedReferral.case_reference}
+                    {formatCaseReference(selectedReferral.case_reference)}
                   </p>
                 </div>
               </div>
@@ -519,7 +700,9 @@ function Referrals() {
               <div className="flex gap-3">
                 <Building2 className="text-[#367C78]" size={20} />
                 <div>
-                  <p className="text-xs text-slate-500">Referring Institution</p>
+                  <p className="text-xs text-slate-500">
+                    Referring Institution
+                  </p>
                   <p className="text-sm font-medium text-[#19324D]">
                     {selectedReferral.referring_institution}
                   </p>
@@ -529,11 +712,23 @@ function Referrals() {
               <div className="flex gap-3">
                 <Building2 className="text-[#367C78]" size={20} />
                 <div>
-                  <p className="text-xs text-slate-500">Receiving Institution</p>
+                  <p className="text-xs text-slate-500">
+                    Receiving Institution
+                  </p>
                   <p className="text-sm font-medium text-[#19324D]">
                     {selectedReferral.receiving_institution}
                   </p>
                 </div>
+              </div>
+
+              <div>
+                <p className="text-xs text-slate-500">Receiving Officer</p>
+                <p className="text-sm font-medium text-[#19324D] mt-1">
+                  {getOfficerName(
+                    selectedReferral.receiving_officer,
+                    officers
+                  )}
+                </p>
               </div>
 
               <div>
@@ -544,14 +739,18 @@ function Referrals() {
               </div>
 
               <div>
-                <p className="text-xs text-slate-500">Reason for Referral</p>
+                <p className="text-xs text-slate-500">
+                  Reason for Referral
+                </p>
                 <p className="text-sm text-slate-700 mt-1">
                   {selectedReferral.reason}
                 </p>
               </div>
 
               <div>
-                <p className="text-xs text-slate-500">Institution Response</p>
+                <p className="text-xs text-slate-500">
+                  Institution Response
+                </p>
                 <p className="text-sm text-slate-700 mt-1">
                   {selectedReferral.response_notes ||
                     "No response recorded yet."}

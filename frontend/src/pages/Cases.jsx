@@ -1,55 +1,12 @@
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Search,
   Plus,
   Eye,
   X,
 } from "lucide-react";
-
-// Temporary fictional records.
-// These will eventually come from GET /api/cases/
-const initialCases = [
-  {
-    id: 1,
-    reference_number: "TUL-001",
-    case_category: "CHILD_PROTECTION",
-    child_name: "Demo Child A",
-    child_age: 12,
-    incident_type: "ABUSE",
-    district: "Kampala",
-    incident_date: "2026-11-18",
-    description:
-      "A reported child protection concern requiring assessment and follow-up.",
-    status: "UNDER_REVIEW",
-  },
-  {
-    id: 2,
-    reference_number: "TUL-002",
-    case_category: "CHILD_PROTECTION",
-    child_name: "Demo Child B",
-    child_age: 14,
-    incident_type: "NEGLECT",
-    district: "Wakiso",
-    incident_date: "2026-11-19",
-    description:
-      "A reported neglect concern referred for further assessment.",
-    status: "ACTIVE",
-  },
-  {
-    id: 3,
-    reference_number: "TUL-003",
-    case_category: "CHILD_IN_CONFLICT_WITH_LAW",
-    child_name: "Demo Child C",
-    child_age: 16,
-    incident_type: "THEFT",
-    district: "Mukono",
-    incident_date: "2026-11-20",
-    description:
-      "An alleged theft matter awaiting initial review.",
-    status: "NEW",
-  },
-];
+import api from "../api";
 
 const caseCategories = [
   {
@@ -93,33 +50,62 @@ const statusStyles = {
   CLOSED: "bg-slate-100 text-slate-600",
 };
 
+const emptyForm = {
+  case_category: "",
+  child_name: "",
+  child_age: "",
+  incident_type: "",
+  description: "",
+  incident_date: "",
+  district: "",
+};
+
 function Cases() {
-  const [cases, setCases] = useState(initialCases);
+  const [cases, setCases] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [showForm, setShowForm] = useState(false);
   const [selectedCase, setSelectedCase] = useState(null);
-
-  const emptyForm = {
-    case_category: "",
-    child_name: "",
-    child_age: "",
-    incident_type: "",
-    description: "",
-    incident_date: "",
-    district: "",
-  };
-
   const [formData, setFormData] = useState(emptyForm);
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  useEffect(() => {
+    fetchCases();
+  }, []);
+
+  async function fetchCases() {
+    setLoading(true);
+    setError("");
+
+    try {
+      const response = await api.get("/api/cases/");
+      const data = response.data;
+
+      setCases(Array.isArray(data) ? data : data.results || []);
+    } catch (err) {
+      console.error("Failed to fetch cases:", err);
+
+      setError(
+        err.response?.data?.detail ||
+        "Unable to load cases. Please try again."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
 
   const filteredCases = cases.filter((caseItem) => {
     const search = searchTerm.toLowerCase();
 
     const matchesSearch =
-      caseItem.reference_number.toLowerCase().includes(search) ||
-      caseItem.district.toLowerCase().includes(search) ||
-      caseItem.incident_type.toLowerCase().includes(search) ||
-      caseItem.case_category.toLowerCase().includes(search);
+      String(caseItem.reference_number || "").toLowerCase().includes(search) ||
+      String(caseItem.district || "").toLowerCase().includes(search) ||
+      String(caseItem.incident_type || "").toLowerCase().includes(search) ||
+      String(caseItem.case_category || "").toLowerCase().includes(search);
 
     const matchesStatus =
       statusFilter === "ALL" || caseItem.status === statusFilter;
@@ -149,20 +135,49 @@ function Cases() {
     }));
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
 
-    const newCase = {
-      id: Date.now(),
-      reference_number: `DEMO-${String(cases.length + 1).padStart(3, "0")}`,
-      ...formData,
-      child_age: Number(formData.child_age),
-      status: "NEW",
-    };
+    setSaving(true);
+    setError("");
+    setSuccess("");
 
-    setCases((previous) => [newCase, ...previous]);
-    setFormData(emptyForm);
-    setShowForm(false);
+    try {
+      const payload = {
+        ...formData,
+        child_age: Number(formData.child_age),
+      };
+
+      const response = await api.post("/api/cases/", payload);
+
+      setCases((previous) => [response.data, ...previous]);
+      setFormData({ ...emptyForm });
+      setShowForm(false);
+      setSuccess("Case registered successfully.");
+
+    } catch (err) {
+      console.error("Failed to register case:", err);
+
+      const responseData = err.response?.data;
+
+      if (responseData && typeof responseData === "object") {
+        const messages = Object.entries(responseData).map(
+          ([field, details]) => {
+            const detail = Array.isArray(details)
+              ? details.join(", ")
+              : String(details);
+
+            return `${field}: ${detail}`;
+          }
+        );
+
+        setError(messages.join(" | "));
+      } else {
+        setError("Unable to register case. Please try again.");
+      }
+    } finally {
+      setSaving(false);
+    }
   }
 
   function formatDate(date) {
@@ -178,14 +193,33 @@ function Cases() {
   function getCategoryLabel(value) {
     return (
       caseCategories.find((category) => category.value === value)?.label ||
-      value
+      value ||
+      "—"
     );
   }
 
   function getIncidentLabel(value) {
     const allTypes = Object.values(incidentTypes).flat();
 
-    return allTypes.find((type) => type.value === value)?.label || value;
+    return (
+      allTypes.find((type) => type.value === value)?.label ||
+      value ||
+      "—"
+    );
+  }
+
+  function getStatusLabel(value) {
+    return statusLabels[value] || value || "Unknown";
+  }
+
+  function getStatusStyle(value) {
+    return statusStyles[value] || "bg-slate-100 text-slate-600";
+  }
+
+  function closeForm() {
+    setFormData({ ...emptyForm });
+    setShowForm(false);
+    setError("");
   }
 
   return (
@@ -202,7 +236,11 @@ function Cases() {
         </div>
 
         <button
-          onClick={() => setShowForm(true)}
+          onClick={() => {
+            setError("");
+            setSuccess("");
+            setShowForm(true);
+          }}
           className="flex items-center justify-center gap-2 bg-[#367C78] hover:bg-[#2c6663] text-white px-5 py-3 rounded-lg text-sm font-medium"
         >
           <Plus size={18} />
@@ -210,46 +248,69 @@ function Cases() {
         </button>
       </div>
 
+      {/* Feedback messages */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg text-sm">
+          {error}
+        </div>
+      )}
+
+      {success && (
+        <div className="bg-teal-50 border border-teal-200 text-teal-800 p-4 rounded-lg text-sm">
+          {success}
+        </div>
+      )}
+
       {/* Summary cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
         <div className="bg-white border border-slate-200 rounded-xl p-5">
           <p className="text-sm text-slate-500">Total Cases</p>
           <p className="text-3xl font-bold text-[#19324D] mt-2">
-            {cases.length}
+            {loading ? "..." : cases.length}
           </p>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-xl p-5">
           <p className="text-sm text-slate-500">New Cases</p>
           <p className="text-3xl font-bold text-[#19324D] mt-2">
-            {newCount}
+            {loading ? "..." : newCount}
           </p>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-xl p-5">
           <p className="text-sm text-slate-500">Under Review</p>
           <p className="text-3xl font-bold text-[#19324D] mt-2">
-            {underReviewCount}
+            {loading ? "..." : underReviewCount}
           </p>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-xl p-5">
           <p className="text-sm text-slate-500">Active Cases</p>
           <p className="text-3xl font-bold text-[#19324D] mt-2">
-            {activeCount}
+            {loading ? "..." : activeCount}
           </p>
         </div>
       </div>
 
       {/* Cases table */}
       <div className="bg-white border border-slate-200 rounded-xl">
-        <div className="p-5 border-b border-slate-200">
-          <h2 className="text-lg font-semibold text-[#19324D]">
-            Registered Cases
-          </h2>
-          <p className="text-sm text-slate-500 mt-1">
-            View and monitor recorded cases.
-          </p>
+        <div className="p-5 border-b border-slate-200 flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-[#19324D]">
+              Registered Cases
+            </h2>
+            <p className="text-sm text-slate-500 mt-1">
+              View and monitor recorded cases.
+            </p>
+          </div>
+
+          <button
+            onClick={fetchCases}
+            disabled={loading}
+            className="text-sm text-[#367C78] hover:text-[#19324D] disabled:opacity-50"
+          >
+            Refresh
+          </button>
         </div>
 
         <div className="p-5 flex flex-col md:flex-row gap-3">
@@ -302,7 +363,7 @@ function Cases() {
                   className="border-t border-slate-100 hover:bg-slate-50"
                 >
                   <td className="px-5 py-4 font-medium text-[#19324D]">
-                    {caseItem.reference_number}
+                    {String(caseItem.reference_number || "").slice(0, 8).toUpperCase()}
                   </td>
 
                   <td className="px-5 py-4 text-slate-600 min-w-52">
@@ -323,11 +384,9 @@ function Cases() {
 
                   <td className="px-5 py-4">
                     <span
-                      className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        statusStyles[caseItem.status]
-                      }`}
+                      className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusStyle(caseItem.status)}`}
                     >
-                      {statusLabels[caseItem.status]}
+                      {getStatusLabel(caseItem.status)}
                     </span>
                   </td>
 
@@ -344,13 +403,24 @@ function Cases() {
                 </tr>
               ))}
 
-              {filteredCases.length === 0 && (
+              {!loading && filteredCases.length === 0 && (
                 <tr>
                   <td
                     colSpan="7"
                     className="px-6 py-12 text-center text-slate-500"
                   >
                     No cases found.
+                  </td>
+                </tr>
+              )}
+
+              {loading && (
+                <tr>
+                  <td
+                    colSpan="7"
+                    className="px-6 py-12 text-center text-slate-500"
+                  >
+                    Loading cases...
                   </td>
                 </tr>
               )}
@@ -392,11 +462,9 @@ function Cases() {
                 </h3>
 
                 <span
-                  className={`px-3 py-1 rounded-full text-xs font-medium ${
-                    statusStyles[selectedCase.status]
-                  }`}
+                  className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusStyle(selectedCase.status)}`}
                 >
-                  {statusLabels[selectedCase.status]}
+                  {getStatusLabel(selectedCase.status)}
                 </span>
               </div>
 
@@ -481,7 +549,7 @@ function Cases() {
               </div>
 
               <button
-                onClick={() => setShowForm(false)}
+                onClick={closeForm}
                 className="text-slate-400 hover:text-slate-700"
               >
                 <X size={22} />
@@ -492,6 +560,12 @@ function Cases() {
               <div className="bg-teal-50 text-teal-900 p-3 rounded-lg text-sm">
                 Use fictional information when testing this demonstration.
               </div>
+
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-lg text-sm">
+                  {error}
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -552,7 +626,7 @@ function Cases() {
                     required
                     maxLength="150"
                     className="w-full border border-slate-200 rounded-lg px-3 py-3 text-sm"
-                    placeholder="Enter child's name"
+                    placeholder="Enter fictional child's name"
                   />
                 </div>
 
@@ -617,17 +691,15 @@ function Cases() {
                   required
                   rows="4"
                   className="w-full border border-slate-200 rounded-lg px-3 py-3 text-sm resize-y"
-                  placeholder="Provide a brief description without unnecessary identifying details..."
+                  placeholder="Use fictional information when testing..."
                 />
               </div>
 
               <div className="flex justify-end gap-3 pt-3 border-t border-slate-200">
                 <button
                   type="button"
-                  onClick={() => {
-                    setFormData(emptyForm);
-                    setShowForm(false);
-                  }}
+                  onClick={closeForm}
+                  disabled={saving}
                   className="px-5 py-2.5 rounded-lg border border-slate-200 text-slate-600 text-sm"
                 >
                   Cancel
@@ -635,9 +707,10 @@ function Cases() {
 
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-lg bg-[#367C78] hover:bg-[#2c6663] text-white text-sm font-medium"
+                  disabled={saving}
+                  className="px-5 py-2.5 rounded-lg bg-[#367C78] hover:bg-[#2c6663] disabled:opacity-60 text-white text-sm font-medium"
                 >
-                  Save Case
+                  {saving ? "Saving..." : "Save Case"}
                 </button>
               </div>
             </form>

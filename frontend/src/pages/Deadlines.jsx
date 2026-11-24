@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Clock,
   AlertTriangle,
@@ -9,97 +9,143 @@ import {
   X,
   CalendarDays,
 } from "lucide-react";
+import api from "../api";
 
-const initialDeadlines = [
-  {
-    id: "DL-001",
-    caseReference: "TUL-001",
-    title: "Follow up on child protection referral",
-    institution: "Probation and Social Welfare Office",
-    dueDate: "2026-11-25",
-    status: "Upcoming",
-  },
-  {
-    id: "DL-002",
-    caseReference: "TUL-002",
-    title: "Review referral response",
-    institution: "Police Child and Family Protection Unit",
-    dueDate: "2026-11-20",
-    status: "Overdue",
-  },
-  {
-    id: "DL-003",
-    caseReference: "TUL-003",
-    title: "Confirm follow-up action",
-    institution: "Legal Aid Provider",
-    dueDate: "2026-11-19",
-    status: "Completed",
-  },
-];
+function getList(data) {
+  if (Array.isArray(data)) return data;
+  return data?.results || [];
+}
 
 function Deadlines() {
-  const [deadlines, setDeadlines] = useState(initialDeadlines);
+  const [deadlines, setDeadlines] = useState([]);
+  const [referrals, setReferrals] = useState([]);
+  const [officers, setOfficers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [showForm, setShowForm] = useState(false);
 
   const [formData, setFormData] = useState({
-    caseReference: "",
-    title: "",
-    institution: "",
-    dueDate: "",
+    referral: "",
+    assigned_to: "",
+    due_date: "",
+    notes: "",
   });
 
+  const today = new Date().toLocaleDateString("en-CA");
+
+  const loadData = async () => {
+    setLoading(true);
+    setError("");
+
+    try {
+      const [followUpsResponse, referralsResponse, staffResponse] =
+        await Promise.all([
+          api.get("/api/referrals/follow-ups/"),
+          api.get("/api/referrals/"),
+          api.get("/api/accounts/staff/list/"),
+        ]);
+
+      setDeadlines(getList(followUpsResponse.data));
+      setReferrals(getList(referralsResponse.data));
+      setOfficers(getList(staffResponse.data));
+    } catch (err) {
+      setError(
+        err.response?.data?.detail ||
+        "Could not load follow-up records. Please check your connection and permissions."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const getReferral = (id) =>
+    referrals.find((item) => String(item.id) === String(id));
+
+  const getOfficer = (id) =>
+    officers.find((item) => String(item.id) === String(id));
+
+  const getStatus = (item) => {
+    if (item.is_completed) return "Completed";
+    if (item.due_date < today) return "Overdue";
+    return "Upcoming";
+  };
+
   const filteredDeadlines = deadlines.filter((item) => {
+    const referral = getReferral(item.referral);
+    const caseReference = referral?.case_reference || "";
     const matchesSearch =
-      item.caseReference.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.institution.toLowerCase().includes(searchTerm.toLowerCase());
+      caseReference.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (item.notes || "").toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesStatus =
-      statusFilter === "All" || item.status === statusFilter;
+      statusFilter === "All" || getStatus(item) === statusFilter;
 
     return matchesSearch && matchesStatus;
   });
 
   const total = deadlines.length;
   const upcoming = deadlines.filter(
-    (item) => item.status === "Upcoming"
+    (item) => getStatus(item) === "Upcoming"
   ).length;
   const overdue = deadlines.filter(
-    (item) => item.status === "Overdue"
+    (item) => getStatus(item) === "Overdue"
   ).length;
   const completed = deadlines.filter(
-    (item) => item.status === "Completed"
+    (item) => item.is_completed
   ).length;
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
+    setSaving(true);
+    setError("");
 
-    const newDeadline = {
-      id: `DL-${String(deadlines.length + 1).padStart(3, "0")}`,
-      ...formData,
-      status: "Upcoming",
-    };
+    try {
+      await api.post("/api/referrals/follow-ups/", {
+        referral: Number(formData.referral),
+        assigned_to: Number(formData.assigned_to),
+        due_date: formData.due_date,
+        notes: formData.notes,
+      });
 
-    setDeadlines((previous) => [...previous, newDeadline]);
+      setFormData({
+        referral: "",
+        assigned_to: "",
+        due_date: "",
+        notes: "",
+      });
 
-    setFormData({
-      caseReference: "",
-      title: "",
-      institution: "",
-      dueDate: "",
-    });
-
-    setShowForm(false);
+      setShowForm(false);
+      await loadData();
+    } catch (err) {
+      setError(
+        JSON.stringify(err.response?.data || "Could not save the follow-up.")
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const updateStatus = (id, status) => {
-    setDeadlines((previous) =>
-      previous.map((item) =>
-        item.id === id ? { ...item, status } : item
-      )
-    );
+  const markComplete = async (id) => {
+    setError("");
+
+    try {
+      await api.patch(`/api/referrals/follow-ups/${id}/`, {
+        is_completed: true,
+      });
+      await loadData();
+    } catch (err) {
+      setError(
+        err.response?.data?.detail ||
+        "Could not update this follow-up."
+      );
+    }
   };
 
   const statusStyles = {
@@ -116,7 +162,7 @@ function Deadlines() {
             Deadline Monitoring
           </h1>
           <p className="text-slate-500 mt-1">
-            Monitor case follow-ups and important pending actions.
+            Monitor referral follow-ups and pending actions.
           </p>
         </div>
 
@@ -129,28 +175,18 @@ function Deadlines() {
         </button>
       </div>
 
+      {error && (
+        <div className="mb-5 p-4 rounded-lg bg-red-50 text-red-700 text-sm">
+          {error}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 mb-8">
         {[
-          {
-            title: "Total Deadlines",
-            value: total,
-            icon: CalendarDays,
-          },
-          {
-            title: "Upcoming",
-            value: upcoming,
-            icon: Clock,
-          },
-          {
-            title: "Overdue",
-            value: overdue,
-            icon: AlertTriangle,
-          },
-          {
-            title: "Completed",
-            value: completed,
-            icon: CheckCircle,
-          },
+          { title: "Total Deadlines", value: total, icon: CalendarDays },
+          { title: "Upcoming", value: upcoming, icon: Clock },
+          { title: "Overdue", value: overdue, icon: AlertTriangle },
+          { title: "Completed", value: completed, icon: CheckCircle },
         ].map((card) => {
           const Icon = card.icon;
 
@@ -177,7 +213,7 @@ function Deadlines() {
             Follow-up Records
           </h2>
           <p className="text-sm text-slate-500 mt-1">
-            Illustrative demonstration records, not statutory deadlines.
+            Live records from the Tuliwamu database.
           </p>
         </div>
 
@@ -189,10 +225,10 @@ function Deadlines() {
             />
             <input
               type="text"
-              placeholder="Search by case, action or institution..."
+              placeholder="Search by case or follow-up notes..."
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
-              className="w-full border border-slate-200 rounded-lg pl-10 pr-4 py-2.5 outline-none focus:ring-2 focus:ring-teal-100"
+              className="w-full border border-slate-200 rounded-lg pl-10 pr-4 py-2.5"
             />
           </div>
 
@@ -214,7 +250,7 @@ function Deadlines() {
               <tr>
                 <th className="px-6 py-4 font-medium">Case Reference</th>
                 <th className="px-6 py-4 font-medium">Follow-up Action</th>
-                <th className="px-6 py-4 font-medium">Institution</th>
+                <th className="px-6 py-4 font-medium">Assigned Officer</th>
                 <th className="px-6 py-4 font-medium">Due Date</th>
                 <th className="px-6 py-4 font-medium">Status</th>
                 <th className="px-6 py-4 font-medium">Action</th>
@@ -222,49 +258,61 @@ function Deadlines() {
             </thead>
 
             <tbody>
-              {filteredDeadlines.length > 0 ? (
-                filteredDeadlines.map((item) => (
-                  <tr key={item.id} className="border-t border-slate-100">
-                    <td className="px-6 py-4 font-medium text-[#19324D]">
-                      {item.caseReference}
-                    </td>
-                    <td className="px-6 py-4 text-slate-600">
-                      {item.title}
-                    </td>
-                    <td className="px-6 py-4 text-slate-600">
-                      {item.institution}
-                    </td>
-                    <td className="px-6 py-4 text-slate-600">
-                      {item.dueDate}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs ${statusStyles[item.status]}`}
-                      >
-                        {item.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      {item.status !== "Completed" && (
-                        <button
-                          onClick={() =>
-                            updateStatus(item.id, "Completed")
-                          }
-                          className="text-[#367C78] hover:underline"
+              {loading ? (
+                <tr>
+                  <td colSpan="6" className="text-center py-10">
+                    Loading follow-ups...
+                  </td>
+                </tr>
+              ) : filteredDeadlines.length > 0 ? (
+                filteredDeadlines.map((item) => {
+                  const referral = getReferral(item.referral);
+                  const officer = getOfficer(item.assigned_to);
+                  const status = getStatus(item);
+
+                  return (
+                    <tr key={item.id} className="border-t border-slate-100">
+                      <td className="px-6 py-4 font-medium text-[#19324D]">
+                        {referral?.case_reference
+                          ? `CASE-${referral.case_reference.slice(0, 8)}`
+                          : `Referral #${item.referral}`}
+                      </td>
+                      <td className="px-6 py-4 text-slate-600">
+                        {item.notes || "Follow-up"}
+                      </td>
+                      <td className="px-6 py-4 text-slate-600">
+                        {officer
+                          ? `${officer.first_name} ${officer.last_name}`.trim() ||
+                            officer.username
+                          : `Officer #${item.assigned_to}`}
+                      </td>
+                      <td className="px-6 py-4 text-slate-600">
+                        {item.due_date}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span
+                          className={`px-3 py-1 rounded-full text-xs ${statusStyles[status]}`}
                         >
-                          Mark complete
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))
+                          {status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        {!item.is_completed && (
+                          <button
+                            onClick={() => markComplete(item.id)}
+                            className="text-[#367C78] hover:underline"
+                          >
+                            Mark complete
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
               ) : (
                 <tr>
-                  <td
-                    colSpan="6"
-                    className="text-center py-10 text-slate-500"
-                  >
-                    No matching deadline records found.
+                  <td colSpan="6" className="text-center py-10 text-slate-500">
+                    No matching follow-up records found.
                   </td>
                 </tr>
               )}
@@ -288,56 +336,61 @@ function Deadlines() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-2">
-                  Case Reference
+                  Referral
                 </label>
-                <input
+                <select
                   required
-                  value={formData.caseReference}
+                  value={formData.referral}
                   onChange={(event) =>
-                    setFormData({
-                      ...formData,
-                      caseReference: event.target.value,
-                    })
+                    setFormData({ ...formData, referral: event.target.value })
                   }
-                  placeholder="e.g. TUL-004"
                   className="w-full border border-slate-200 rounded-lg p-3"
-                />
+                >
+                  <option value="">Select a referral</option>
+                  {referrals.map((referral) => (
+                    <option key={referral.id} value={referral.id}>
+                      {`Referral #${referral.id} — ${
+                        referral.case_reference
+                          ? referral.case_reference.slice(0, 8)
+                          : "Case"
+                      }`}
+                    </option>
+                  ))}
+                </select>
+                {referrals.length === 0 && (
+                  <p className="text-xs text-amber-700 mt-1">
+                    Create a referral before adding a follow-up.
+                  </p>
+                )}
               </div>
 
               <div>
                 <label className="block text-sm font-medium mb-2">
-                  Follow-up Action
+                  Assign to Officer
                 </label>
-                <input
+                <select
                   required
-                  value={formData.title}
+                  value={formData.assigned_to}
                   onChange={(event) =>
                     setFormData({
                       ...formData,
-                      title: event.target.value,
+                      assigned_to: event.target.value,
                     })
                   }
-                  placeholder="Describe the action required"
                   className="w-full border border-slate-200 rounded-lg p-3"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Responsible Institution
-                </label>
-                <input
-                  required
-                  value={formData.institution}
-                  onChange={(event) =>
-                    setFormData({
-                      ...formData,
-                      institution: event.target.value,
-                    })
-                  }
-                  placeholder="Enter institution"
-                  className="w-full border border-slate-200 rounded-lg p-3"
-                />
+                >
+                  <option value="">Select an officer</option>
+                  {officers
+                    .filter((officer) =>
+                      ["POLICE", "PSWO", "LEGAL_AID"].includes(officer.role)
+                    )
+                    .map((officer) => (
+                      <option key={officer.id} value={officer.id}>
+                        {`${officer.first_name} ${officer.last_name}`.trim() ||
+                          officer.username} ({officer.role})
+                      </option>
+                    ))}
+                </select>
               </div>
 
               <div>
@@ -347,13 +400,27 @@ function Deadlines() {
                 <input
                   type="date"
                   required
-                  value={formData.dueDate}
+                  min={today}
+                  value={formData.due_date}
                   onChange={(event) =>
-                    setFormData({
-                      ...formData,
-                      dueDate: event.target.value,
-                    })
+                    setFormData({ ...formData, due_date: event.target.value })
                   }
+                  className="w-full border border-slate-200 rounded-lg p-3"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Follow-up Notes
+                </label>
+                <textarea
+                  required
+                  rows="3"
+                  value={formData.notes}
+                  onChange={(event) =>
+                    setFormData({ ...formData, notes: event.target.value })
+                  }
+                  placeholder="Describe the follow-up action required"
                   className="w-full border border-slate-200 rounded-lg p-3"
                 />
               </div>
@@ -368,9 +435,10 @@ function Deadlines() {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-[#367C78] text-white rounded-lg"
+                  disabled={saving || referrals.length === 0 || officers.length === 0}
+                  className="px-4 py-2 bg-[#367C78] text-white rounded-lg disabled:opacity-50"
                 >
-                  Save Deadline
+                  {saving ? "Saving..." : "Save Deadline"}
                 </button>
               </div>
             </form>
