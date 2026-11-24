@@ -34,22 +34,23 @@ Receivers' `?search=` matches district only. Every case view and change is writt
 ## Referrals & follow-ups — Rose
 | Method | Path | Who | Status |
 |---|---|---|---|
-| GET/POST | `/api/referrals/` | POLICE/PSWO create for own cases; receivers see only theirs | ✅ |
-| GET/PATCH | `/api/referrals/<id>/` | receiver may change `status`, `response_notes` only | ✅ (🛠 restrict fields + state machine) |
-| GET | `/api/referrals/officers/` | staff. Recipients for the referral form | ✅ |
+| GET/POST | `/api/referrals/` | POLICE/PSWO/ADMIN create for their own cases (`case, receiving_officer, reason`; institution names are filled from the officers' institutions). Receivers see only their own. Response includes `receiving_officer_name`, `referred_by_name` | ✅ |
+| GET/PATCH | `/api/referrals/<id>/` | the receiver may change only `status` and `response_notes` (a reason is required to reject); ADMIN may change any field | ✅ |
+| GET | `/api/referrals/officers/` | POLICE/PSWO/ADMIN. Recipients (`id, username, first_name, last_name, role, institution`); other roles get `[]` | ✅ |
 | GET/POST | `/api/referrals/follow-ups/?overdue=true` | | ✅ |
 | GET/PATCH | `/api/referrals/follow-ups/<id>/` | assignee/ADMIN | ✅ |
 
-Referral status flow (🛠): `PENDING → ACCEPTED | REJECTED`, `ACCEPTED → IN_PROGRESS → COMPLETED`.
+Referral status flow (enforced): `PENDING → ACCEPTED | REJECTED`, `ACCEPTED → IN_PROGRESS → COMPLETED`.
 
 ## Public (anonymous) reports — Rose
 | Method | Path | Who | Status |
 |---|---|---|---|
 | POST | `/api/referrals/ussd/` | Africa's Talking callback (form fields `sessionId, phoneNumber, text`) | ✅ |
-| POST | `/api/public-reports/` | anyone, no login. Web form: `category, district, description, contact_phone?` → `{reference_code}` | 🛠 Rose |
-| GET | `/api/public-reports/status/<reference_code>/` | anyone. Returns status only | 🛠 Rose |
-| GET | `/api/public-reports/` | POLICE, PSWO, ADMIN. Triage inbox | 🛠 Rose |
-| POST | `/api/public-reports/<id>/convert/` | POLICE, PSWO. Creates a Case, links it, sets status REFERRED | 🛠 Rose + Mary |
+| POST | `/api/public-reports/` | anyone, no login, 30/hour. `category` (PROTECTION, NEGLECT, VIOLENCE, OTHER), `district`, `description`, optional `contact_phone` → `{reference_code, status, …}` | ✅ |
+| GET | `/api/public-reports/status/<reference_code>/` | anyone. Returns `reference_code, status, status_display` only | ✅ |
+| GET | `/api/public-reports/?status=&category=&channel=&district=` | POLICE, PSWO, ADMIN. Triage inbox | ✅ |
+| GET/PATCH | `/api/public-reports/<id>/` | POLICE, PSWO, ADMIN. PATCH `status` to UNDER_REVIEW or CLOSED | ✅ |
+| POST | `/api/public-reports/<id>/convert/` | POLICE, PSWO, ADMIN. Body: `case_category, incident_type, child_name, child_age, incident_date, assigned_officer?` → `{report, case}`. District + description are copied from the report; the report becomes REFERRED | ✅ |
 
 ## SMS alerts — Rose (`backend/notifications/`)
 Function `send_sms(phone, template_key, **context)`. Templates must **never** contain child names or case details.

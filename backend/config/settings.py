@@ -153,6 +153,8 @@ REST_FRAMEWORK = {
         "rest_framework.authentication.BasicAuthentication",
     ],
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    # Limits abuse of the anonymous, no-login public report endpoints.
+    "DEFAULT_THROTTLE_RATES": {"public_report": "30/hour"},
 }
 
 # Frontend (Vite dev server) origins allowed to call the API.

@@ -4,7 +4,7 @@ from django.db.models import Q
 from rest_framework import serializers
 
 from cases.models import Case
-from .models import Referral, ReferralFollowUp
+from .models import PublicReport, Referral, ReferralFollowUp
 
 User = get_user_model()
 
@@ -18,10 +18,13 @@ class ReferralSerializer(serializers.ModelSerializer):
     receiving_officer = serializers.PrimaryKeyRelatedField(
         queryset=User.objects.filter(
             is_active=True,
-            role__in=["POLICE", "PSWO", "LEGAL_AID"]
+            role__in=User.RECEIVER_ROLES,
         ),
         required=True
     )
+
+    receiving_officer_name = serializers.SerializerMethodField()
+    referred_by_name = serializers.SerializerMethodField()
 
     case_reference = serializers.UUIDField(
         source="case.reference_number",
@@ -38,6 +41,8 @@ class ReferralSerializer(serializers.ModelSerializer):
             "case_reference",
             "referred_by",
             "receiving_officer",
+            "receiving_officer_name",
+            "referred_by_name",
             "referring_institution",
             "receiving_institution",
             "reason",
@@ -53,6 +58,11 @@ class ReferralSerializer(serializers.ModelSerializer):
             "date_referred",
             "date_updated",
         ]
+        # Filled from the officers' institutions when they have one.
+        extra_kwargs = {
+            "referring_institution": {"required": False},
+            "receiving_institution": {"required": False},
+        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -73,10 +83,14 @@ class ReferralSerializer(serializers.ModelSerializer):
             else:
                 self.fields["case"].queryset = Case.objects.none()
 
-        # Do not allow changing the case or recipient after creation.
-        if self.instance:
+        # After creation, only an administrator may edit the referral
+        # details. The receiving officer may only change status and notes.
+        if self.instance is not None and not isinstance(self.instance, (list, tuple)):
             self.fields["case"].read_only = True
             self.fields["receiving_officer"].read_only = True
+            if user.role != "ADMIN":
+                for name in ("referring_institution", "receiving_institution", "reason"):
+                    self.fields[name].read_only = True
 
         # Only an administrator or the assigned receiving officer
         # can update status and response notes.
@@ -92,8 +106,32 @@ class ReferralSerializer(serializers.ModelSerializer):
             self.fields["status"].read_only = True
             self.fields["response_notes"].read_only = True
 
+    @staticmethod
+    def _display_name(user):
+        if user is None:
+            return None
+        full_name = user.get_full_name().strip()
+        return full_name or user.username
+
+    def get_receiving_officer_name(self, referral):
+        return self._display_name(referral.receiving_officer)
+
+    def get_referred_by_name(self, referral):
+        return self._display_name(referral.referred_by)
+
     def validate(self, attrs):
         if self.instance is None:
+            # Fill institution names from the officers' institutions so
+            # they cannot be mistyped or spoofed.
+            request = self.context.get("request")
+            receiver = attrs.get("receiving_officer")
+            if receiver is not None and receiver.institution_id:
+                attrs["receiving_institution"] = receiver.institution.name
+            if request is not None and request.user.institution_id:
+                attrs["referring_institution"] = request.user.institution.name
+            for name in ("referring_institution", "receiving_institution"):
+                if not attrs.get(name):
+                    raise serializers.ValidationError({name: "This field is required."})
             return attrs
 
         new_status = attrs.get("status")
@@ -133,7 +171,7 @@ class ReferralFollowUpSerializer(serializers.ModelSerializer):
     assigned_to = serializers.PrimaryKeyRelatedField(
         queryset=User.objects.filter(
             is_active=True,
-            role__in=["POLICE", "PSWO", "LEGAL_AID"]
+            role__in=User.RECEIVER_ROLES,
         )
     )
 
@@ -177,3 +215,63 @@ class ReferralFollowUpSerializer(serializers.ModelSerializer):
         raise serializers.ValidationError(
             "You do not have permission to create a follow-up for this referral."
         )
+
+
+class PublicReportSubmitSerializer(serializers.ModelSerializer):
+    """Anonymous web submission. Mirrors the USSD flow."""
+
+    class Meta:
+        model = PublicReport
+        fields = ("category", "district", "description", "contact_phone", "reference_code", "status")
+        read_only_fields = ("reference_code", "status")
+        extra_kwargs = {
+            "description": {"max_length": 1000},
+            "contact_phone": {"required": False, "allow_blank": True},
+        }
+
+
+class PublicReportSerializer(serializers.ModelSerializer):
+    """Triage view for Police, PSWOs and admins."""
+
+    category_display = serializers.CharField(source="get_category_display", read_only=True)
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
+
+    class Meta:
+        model = PublicReport
+        fields = (
+            "id",
+            "reference_code",
+            "category",
+            "category_display",
+            "district",
+            "description",
+            "contact_phone",
+            "channel",
+            "status",
+            "status_display",
+            "case",
+            "reviewed_by",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = (
+            "id",
+            "reference_code",
+            "category",
+            "district",
+            "description",
+            "contact_phone",
+            "channel",
+            "case",
+            "reviewed_by",
+            "created_at",
+            "updated_at",
+        )
+
+    def validate_status(self, value):
+        if value == PublicReport.ReportStatus.REFERRED:
+            raise serializers.ValidationError(
+                "Use the convert endpoint to turn a report into a case."
+            )
+        return value
+
