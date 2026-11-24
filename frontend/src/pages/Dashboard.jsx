@@ -1,120 +1,80 @@
-
-import {
-  FolderOpen,
-  ArrowLeftRight,
-  Clock,
-  CheckCircle,
-} from "lucide-react";
-
+import { ArrowLeftRight, Clock, FolderOpen, Inbox, ShieldCheck } from "lucide-react";
+import { useAuth } from "../useAuth";
+import useApi from "../useApi";
 import StatCard from "../components/StatCard";
+import { REFERRAL_STATUS, ROLE_LABELS, formatDate, shortRef } from "../constants";
+import { Badge, Card, Loading, Table } from "../components/ui";
 
-const recentCases = [
-  {
-    id: "CASE-001",
-    type: "Child Protection",
-    status: "Under Review",
-    institution: "Probation Office",
-  },
-  {
-    id: "CASE-002",
-    type: "Child Victim Support",
-    status: "Referred",
-    institution: "Child Protection Unit",
-  },
-  {
-    id: "CASE-003",
-    type: "Child in Conflict with the Law",
-    status: "Open",
-    institution: "Police",
-  },
-];
+const INTAKE = ["ADMIN", "POLICE", "PSWO"];
 
-function Dashboard() {
+function Dashboard({ setActivePage }) {
+  const { user } = useAuth();
+  const isIntake = INTAKE.includes(user.role);
+  const cases = useApi("/api/cases/", []);
+  const referrals = useApi("/api/referrals/", []);
+  const followUps = useApi("/api/referrals/follow-ups/?overdue=true", []);
+  const reports = useApi(isIntake ? "/api/public-reports/?status=RECEIVED" : null, []);
+
+  const incomingPending = referrals.data.filter((r) => r.receiving_officer === user.id && r.status === "PENDING");
+  const awaitingReply = referrals.data.filter((r) => r.referred_by === user.id && r.status === "PENDING");
+
+  const count = (source, rows) => (source.loading ? "…" : rows.length);
+
+  const cards = isIntake
+    ? [
+        { title: "New public reports", value: count(reports, reports.data), description: "Waiting for triage", icon: Inbox, page: "Public Reports" },
+        { title: "My cases", value: count(cases, cases.data), description: "Registered by or assigned to you", icon: FolderOpen, page: "Cases" },
+        { title: "Referrals awaiting reply", value: count(referrals, awaitingReply), description: "Sent, not yet acknowledged", icon: ArrowLeftRight, page: "Referrals" },
+        { title: "Overdue follow-ups", value: count(followUps, followUps.data), description: "Past their due date", icon: Clock, page: "Follow-ups" },
+      ]
+    : [
+        { title: "New referrals for you", value: count(referrals, incomingPending), description: "Accept or decline", icon: Inbox, page: "Referrals" },
+        { title: "Cases referred to you", value: count(cases, cases.data), description: "Identity shown after you accept", icon: FolderOpen, page: "Cases" },
+        { title: "All my referrals", value: count(referrals, referrals.data), description: "Any status", icon: ArrowLeftRight, page: "Referrals" },
+        { title: "Overdue follow-ups", value: count(followUps, followUps.data), description: "Past their due date", icon: Clock, page: "Follow-ups" },
+      ];
+
+  const recent = referrals.data.slice(0, 6);
+
   return (
-    <div className="p-8">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-[#19324D]">
-          Welcome to Tuliwamu
-        </h1>
-        <p className="text-slate-500 mt-1">
-          A coordinated approach to child protection and access to justice.
+    <div className="p-8 space-y-7">
+      <div className="bg-[#19324D] text-white rounded-xl p-6 flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">Welcome, {user.first_name || user.username}</h1>
+          <p className="text-sm text-slate-300 mt-1">
+            {ROLE_LABELS[user.role]}{user.institution ? ` · ${user.institution.name}` : ""}
+          </p>
+        </div>
+        <p className="flex items-center gap-2 text-xs text-slate-300 max-w-sm">
+          <ShieldCheck size={18} className="shrink-0" />
+          You only see the records your role needs. Every view of a child's record is logged.
         </p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
-        <StatCard
-          title="Total Cases"
-          value="24"
-          description="Illustrative demo figure"
-          icon={FolderOpen}
-        />
-
-        <StatCard
-          title="Active Referrals"
-          value="12"
-          description="Illustrative demo figure"
-          icon={ArrowLeftRight}
-        />
-
-        <StatCard
-          title="Upcoming Deadlines"
-          value="5"
-          description="Illustrative demo figure"
-          icon={Clock}
-        />
-
-        <StatCard
-          title="Resolved Cases"
-          value="7"
-          description="Illustrative demo figure"
-          icon={CheckCircle}
-        />
+        {cards.map(({ page, ...card }) => (
+          <button key={card.title} onClick={() => setActivePage(page)} className="text-left">
+            <StatCard {...card} />
+          </button>
+        ))}
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-xl mt-8">
-        <div className="p-6 border-b border-slate-200">
-          <h2 className="text-lg font-semibold text-[#19324D]">
-            Recent Cases
-          </h2>
-          <p className="text-sm text-slate-500 mt-1">
-            Sample records for the demonstration
-          </p>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-slate-50 text-slate-500">
-              <tr>
-                <th className="px-6 py-4 font-medium">Case ID</th>
-                <th className="px-6 py-4 font-medium">Case Type</th>
-                <th className="px-6 py-4 font-medium">Institution</th>
-                <th className="px-6 py-4 font-medium">Status</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {recentCases.map((caseItem) => (
-                <tr key={caseItem.id} className="border-t border-slate-100">
-                  <td className="px-6 py-4 font-medium text-[#19324D]">
-                    {caseItem.id}
-                  </td>
-                  <td className="px-6 py-4 text-slate-600">
-                    {caseItem.type}
-                  </td>
-                  <td className="px-6 py-4 text-slate-600">
-                    {caseItem.institution}
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="bg-teal-50 text-teal-800 px-3 py-1 rounded-full text-xs">
-                      {caseItem.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <Card title="Latest referrals" subtitle="Most recent first">
+        {referrals.loading ? (
+          <Loading />
+        ) : (
+          <Table
+            rows={recent}
+            empty="No referrals yet."
+            columns={[
+              { key: "case", label: "Case", render: (r) => <span className="font-medium text-[#19324D]">{shortRef(r.case_reference)}</span> },
+              { key: "to", label: "To", render: (r) => r.receiving_institution },
+              { key: "date", label: "Referred", render: (r) => formatDate(r.date_referred) },
+              { key: "status", label: "Status", render: (r) => <Badge map={REFERRAL_STATUS} value={r.status} /> },
+            ]}
+          />
+        )}
+      </Card>
     </div>
   );
 }
