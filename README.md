@@ -16,9 +16,11 @@ python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\act
 pip install -r requirements.txt
 cp .env.example .env        # then set DJANGO_SECRET_KEY
 python manage.py migrate
-python manage.py createsuperuser
+python manage.py seed_demo      # fictional demo data (use --reset to start over)
 python manage.py runserver
 ```
+Demo logins (password `Tuliwamu2026!`, all fictional): `admin`, `police.wakiso`, `police.gulu`, `pswo.wakiso`, `legalaid`, `support`, `oversight`.
+
 API docs: http://127.0.0.1:8000/api/docs/ · Tests: `python manage.py test`
 
 **Frontend**
