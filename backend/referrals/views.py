@@ -1,5 +1,5 @@
-
 from django.db.models import Q
+from django.utils import timezone
 from rest_framework import generics
 from rest_framework.permissions import (
     IsAuthenticated,
@@ -7,9 +7,8 @@ from rest_framework.permissions import (
     SAFE_METHODS,
 )
 
-from .models import Referral, ReferralStatusHistory
-from .serializers import ReferralSerializer
-from django.utils import timezone
+from audit.models import AuditLog, record
+
 from .models import Referral, ReferralStatusHistory, ReferralFollowUp
 from .serializers import ReferralSerializer, ReferralFollowUpSerializer
 
@@ -70,7 +69,14 @@ class ReferralListCreateView(generics.ListCreateAPIView):
         return queryset.filter(receiving_officer=user)
 
     def perform_create(self, serializer):
-        serializer.save(referred_by=self.request.user)
+        referral = serializer.save(referred_by=self.request.user)
+        record(
+            self.request.user,
+            AuditLog.Action.REFER,
+            referral.case,
+            f"referral #{referral.pk} to {referral.receiving_institution}",
+        )
+        record(self.request.user, AuditLog.Action.CREATE, referral)
 
 
 class ReferralDetailView(generics.RetrieveUpdateAPIView):
@@ -114,6 +120,12 @@ class ReferralDetailView(generics.RetrieveUpdateAPIView):
                 new_status=referral.status,
                 changed_by=self.request.user,
                 notes=referral.response_notes,
+            )
+            record(
+                self.request.user,
+                AuditLog.Action.STATUS_CHANGE,
+                referral,
+                f"{old_status} -> {referral.status}",
             )
 
 
@@ -204,13 +216,18 @@ User = get_user_model()
 
 
 class ReferralOfficerListView(APIView):
+    """Possible referral recipients, for the referral form."""
+
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        if request.user.role not in ("ADMIN", "POLICE", "PSWO"):
+            return Response([])
+
         officers = User.objects.filter(
             is_active=True,
-            role__in=["POLICE", "PSWO", "LEGAL_AID"]
-        ).order_by("role", "username")
+            role__in=User.RECEIVER_ROLES,
+        ).exclude(pk=request.user.pk).select_related("institution").order_by("role", "username")
 
         data = [
             {
@@ -219,6 +236,7 @@ class ReferralOfficerListView(APIView):
                 "first_name": officer.first_name,
                 "last_name": officer.last_name,
                 "role": officer.role,
+                "institution": officer.institution.name if officer.institution else None,
             }
             for officer in officers
         ]

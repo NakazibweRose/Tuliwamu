@@ -56,7 +56,8 @@ class Referral(models.Model):
         ordering = ["-date_referred"]
 
     def __str__(self):
-        return f"{self.case.reference_number} - {self.receiving_institution}"
+        reference = self.case.reference_number if self.case_id else "no case"
+        return f"Referral #{self.pk} ({reference}) -> {self.receiving_institution}"
 
 
 class ReferralStatusHistory(models.Model):
@@ -163,7 +164,28 @@ class PublicReport(models.Model):
         choices=ReportStatus.choices,
         default=ReportStatus.RECEIVED,
     )
+    channel = models.CharField(
+        max_length=10,
+        choices=[("USSD", "USSD"), ("WEB", "Web form")],
+        default="USSD",
+    )
+    # Set when an officer converts the report into a protected case.
+    case = models.ForeignKey(
+        "cases.Case",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="public_reports",
+    )
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reviewed_public_reports",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["-created_at"]

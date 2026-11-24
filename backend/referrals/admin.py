@@ -25,10 +25,12 @@ class PublicReportAdmin(admin.ModelAdmin):
         "reference_code",
         "category",
         "district",
+        "channel",
         "status",
+        "case",
         "created_at",
     )
-    list_filter = ("category", "status", "district")
+    list_filter = ("category", "status", "channel", "district")
     search_fields = ("reference_code", "district", "contact_phone")
     readonly_fields = ("reference_code", "created_at")
 
