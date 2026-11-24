@@ -30,6 +30,7 @@ urlpatterns = [
     path("api/accounts/", include("accounts.urls")),
     path("api/referrals/", include("referrals.urls")),
     path("api/public-reports/", include("referrals.public_urls")),
+    path("api/stats/", include("stats.urls")),
     path("api/token/", CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("api/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
