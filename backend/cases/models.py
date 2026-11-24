@@ -25,6 +25,7 @@ class Case(models.Model):
         ASSAULT = "ASSAULT", "Alleged Assault"
         DRUG_RELATED = "DRUG_RELATED", "Drug-related Allegation"
         PROPERTY_DAMAGE = "PROPERTY_DAMAGE", "Alleged Property Damage"
+        DEFILEMENT = "DEFILEMENT", "Alleged Defilement"
         OTHER = "OTHER", "Other"
 
     class Status(models.TextChoices):
@@ -103,6 +104,7 @@ class Case(models.Model):
             "ASSAULT",
             "DRUG_RELATED",
             "PROPERTY_DAMAGE",
+            "DEFILEMENT",
             "OTHER",
         }
 

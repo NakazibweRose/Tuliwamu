@@ -105,6 +105,7 @@ class CaseSerializer(serializers.ModelSerializer):
             "ASSAULT",
             "DRUG_RELATED",
             "PROPERTY_DAMAGE",
+            "DEFILEMENT",
             "OTHER",
         }
 

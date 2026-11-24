@@ -10,6 +10,8 @@ class Institution(models.Model):
         PROBATION_OFFICE = "PROBATION_OFFICE", "Probation & Social Welfare Office"
         LEGAL_AID = "LEGAL_AID", "Legal Aid Provider"
         SERVICE_PROVIDER = "SERVICE_PROVIDER", "Support Service (health, shelter, psychosocial)"
+        PROSECUTION = "PROSECUTION", "Office of the Director of Public Prosecutions"
+        COURT = "COURT", "Family and Children Court / Magistrates Court"
         OVERSIGHT = "OVERSIGHT", "Oversight / Monitoring & Evaluation"
         OTHER = "OTHER", "Other"
 
@@ -44,6 +46,8 @@ class User(AbstractUser):
         PSWO = "PSWO", "Probation and Social Welfare Officer"
         LEGAL_AID = "LEGAL_AID", "Legal Aid Provider"
         SERVICE_PROVIDER = "SERVICE_PROVIDER", "Support Service Provider"
+        PROSECUTOR = "PROSECUTOR", "State Attorney (ODPP)"
+        COURT = "COURT", "Court Registry (Family and Children Court)"
         OVERSIGHT = "OVERSIGHT", "Oversight / M&E (anonymised statistics only)"
 
     # Roles that register cases and make referrals.
@@ -56,6 +60,8 @@ class User(AbstractUser):
         Role.PSWO,
         Role.LEGAL_AID,
         Role.SERVICE_PROVIDER,
+        Role.PROSECUTOR,
+        Role.COURT,
         Role.OVERSIGHT,
     )
 
