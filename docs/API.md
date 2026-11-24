@@ -10,11 +10,11 @@ Legend: ✅ exists on `develop` · 🛠 to build (owner) · 🗑 to be removed (
 ## Accounts — Mary
 | Method | Path | Who | Status |
 |---|---|---|---|
-| GET | `/api/accounts/profile/` | any logged-in user. Returns `id, username, first_name, last_name, role` (+ `institution`, `phone_number` 🛠) | ✅ |
+| GET | `/api/accounts/profile/` | any logged-in user. Returns `id, username, first_name, last_name, role` + `role_display`, `institution`, `phone_number` | ✅ |
 | POST | `/api/accounts/staff/` | ADMIN. Create staff account | ✅ |
 | GET | `/api/accounts/staff/list/` | ADMIN | ✅ |
 | PATCH | `/api/accounts/staff/<id>/status/` · `/role/` | ADMIN | ✅ |
-| GET/POST | `/api/institutions/` | GET: staff · POST: ADMIN | 🛠 Mary |
+| GET/POST | `/api/accounts/institutions/?type=LEGAL_AID` | GET: staff · POST: ADMIN | ✅ |
 | POST | `/api/accounts/register/` | public community sign-up | 🗑 parked |
 
 ## Cases — Mary
