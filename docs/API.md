@@ -56,21 +56,29 @@ Referral status flow (enforced): `PENDING → ACCEPTED | REJECTED`, `ACCEPTED �
 Function `send_sms(phone, template_key, **context)`. Templates must **never** contain child names or case details.
 Triggers: new referral → receiver · status change → referrer · opt-in public report → reporter · overdue follow-up → assignee.
 
-## Anonymised statistics — Dorcus (`backend/stats/`)
+## Anonymised statistics (`backend/stats/`)
 | Method | Path | Who | Status |
 |---|---|---|---|
-| GET | `/api/stats/summary/` | OVERSIGHT, ADMIN | 🛠 Dorcus |
+| GET | `/api/stats/summary/` | OVERSIGHT, ADMIN (others → 403) | ✅ |
 
-Proposed response (agree before building):
+Response:
 ```json
 {
-  "reports_total": 42,
-  "reports_by_district": [{"district": "Wakiso", "count": 12}, {"district": "Gulu", "count": "<5"}],
-  "cases_by_category": [{"category": "CHILD_PROTECTION", "count": 20}],
-  "referrals_by_status": [{"status": "COMPLETED", "count": 9}],
-  "median_hours_to_acknowledge": 6.5,
-  "percent_referrals_completed": 41.0,
-  "overdue_follow_ups": 3
+  "generated_at": "2026-11-24T12:00:00Z",
+  "suppression_threshold": 5,
+  "totals": {"public_reports": 42, "cases": 20, "referrals": 18},
+  "reports_by_district": [{"key": "Wakiso", "label": "Wakiso", "count": 12}, {"key": "Gulu", "label": "Gulu", "count": "<5"}],
+  "reports_by_channel": [...], "reports_by_category": [...],
+  "cases_by_category": [...], "cases_by_age_band": [...],
+  "referrals_by_status": [...], "referrals_by_receiving_institution": [...],
+  "kpis": {
+    "median_hours_to_acknowledge": 6.5,
+    "percent_acknowledged_within_48h": 83.3,
+    "percent_referrals_completed": 41.0,
+    "percent_reports_converted_to_cases": 47.6,
+    "pending_referrals_older_than_48h": "<5",
+    "overdue_follow_ups": 3
+  }
 }
 ```
-Any count from 1 to 4 is returned as the string `"<5"` (small-cell suppression).
+Every breakdown row is `{key, label, count}`. A `count` from 1 to 4 is the string `"<5"` (small-cell suppression). Percentages are `null` when there is no data yet. The response never contains names, descriptions or record IDs.

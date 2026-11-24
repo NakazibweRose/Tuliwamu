@@ -56,6 +56,7 @@ INSTALLED_APPS = [
     "cases",
     "referrals",
     "audit",
+    "stats",
 ]
 
 MIDDLEWARE = [
