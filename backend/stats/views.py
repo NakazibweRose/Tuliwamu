@@ -20,6 +20,7 @@ from referrals.models import PublicReport, Referral, ReferralFollowUp, ReferralS
 SUPPRESSION_THRESHOLD = 5
 ACK_STATUSES = ("ACCEPTED", "REJECTED")
 ACK_TARGET_HOURS = 48
+AGE_BAND_ORDER = ["0-5", "6-11", "12-14", "15-17", "18+", "Unknown"]
 
 
 def suppress(count):
@@ -105,7 +106,9 @@ class StatsSummaryView(APIView):
                 ),
                 "cases_by_age_band": [
                     {"key": band, "label": band, "count": suppress(count)}
-                    for band, count in sorted(age_bands.items())
+                    for band, count in sorted(
+                        age_bands.items(), key=lambda item: AGE_BAND_ORDER.index(item[0])
+                    )
                 ],
                 "referrals_by_status": grouped(
                     referrals, "status", dict(Referral.ReferralStatus.choices)
