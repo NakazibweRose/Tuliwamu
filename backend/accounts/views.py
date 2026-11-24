@@ -4,8 +4,9 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-from .models import User
+from .models import Institution, User
 from .serializers import (
+    InstitutionSerializer,
     CommunityRegistrationSerializer,
     CustomTokenObtainPairSerializer,
     StaffAccountCreationSerializer,
@@ -79,4 +80,29 @@ class UserProfileView(APIView):
             "first_name": user.first_name,
             "last_name": user.last_name,
             "role": user.role,
+            "role_display": user.get_role_display(),
+            "institution": (
+                InstitutionSerializer(user.institution).data
+                if user.institution else None
+            ),
+            "phone_number": user.phone_number,
         })
+
+
+class InstitutionListCreateView(generics.ListCreateAPIView):
+    """Staff can list institutions (e.g. to pick a referral recipient).
+    Only administrators can add institutions."""
+
+    serializer_class = InstitutionSerializer
+
+    def get_permissions(self):
+        if self.request.method == "POST":
+            return [IsAdminUser()]
+        return [IsAuthenticated()]
+
+    def get_queryset(self):
+        queryset = Institution.objects.filter(is_active=True)
+        institution_type = self.request.query_params.get("type")
+        if institution_type:
+            queryset = queryset.filter(institution_type=institution_type)
+        return queryset

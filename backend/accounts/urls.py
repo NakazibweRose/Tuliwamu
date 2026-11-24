@@ -6,10 +6,12 @@ from .views import (
     UserProfileView,
     StaffAccountListView,
     StaffAccountStatusView,
-    StaffRoleUpdateView
+    StaffRoleUpdateView,
+    InstitutionListCreateView,
 )
 
 urlpatterns = [
+    path("institutions/", InstitutionListCreateView.as_view(), name="institution-list-create"),
     path("register/", CommunityRegistrationView.as_view(), name="community-register"),
     path("staff/", StaffAccountCreationView.as_view(), name="staff-account-create"),
     path("profile/", UserProfileView.as_view(), name="user-profile"),
