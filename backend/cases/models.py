@@ -4,6 +4,7 @@ from django.conf import settings
 from django.db import models
 from django.core.exceptions import ValidationError
 
+
 class Case(models.Model):
     class CaseCategory(models.TextChoices):
         CHILD_PROTECTION = (
@@ -40,7 +41,6 @@ class Case(models.Model):
         unique=True,
         editable=False,
     )
-
     child_name = models.CharField(max_length=150)
     child_age = models.PositiveSmallIntegerField()
 
@@ -120,7 +120,22 @@ class Case(models.Model):
                     "case category."
                 )
             })
+    @property
+    def age_band(self):
+        """Coarse age band shown instead of identity on minimised views.
+        12 is the age of criminal responsibility in Uganda."""
+        age = self.child_age
+        if age is None:
+            return "Unknown"
+        if age <= 5:
+            return "0-5"
+        if age <= 11:
+            return "6-11"
+        if age <= 14:
+            return "12-14"
+        if age <= 17:
+            return "15-17"
+        return "18+"
+
     def __str__(self):
         return str(self.reference_number)
-    
-    
