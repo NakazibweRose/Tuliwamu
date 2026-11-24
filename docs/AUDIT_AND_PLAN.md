@@ -156,7 +156,7 @@ Removed for MVP: `COMMUNITY` (web accounts for the public). Reporting stays anon
 | **Daphine** (frontend) | Login + role-aware nav, connect Cases, Referrals, Public Reports and Follow-ups to the API | Web demo driver |
 | **Dorcus** (AI → data) | Stats endpoint + dashboard with small-cell suppression; **statistics research** from JLOS SDP IV and other sources; draft the 2-page submission | Problem + evidence + KPIs |
 
-## 8. Decisions needed from the team
-1. **AI assistant:** park it entirely, or keep it as a 30-second "roadmap" mention? (Recommendation: park it. Dorcus moves to stats and evidence, which is worth more points.)
-2. **Guardian follow-up feature:** park it? (Recommendation: yes.)
-3. Who creates `develop` and does the three merges? Whoever does it should use `--no-ff` merges.
+## 8. Decisions (agreed 24 Nov)
+1. **AI assistant:** parked. It is not on `develop`/`main` and gets at most a one-line roadmap mention. Dorcus moves to stats, evidence and the submission.
+2. **Guardian/community accounts:** parked as roadmap. The endpoints stay in the code for now and are marked 🗑 in `docs/API.md`; Mary removes them from the URLs in her RBAC PR.
+3. **Integration:** `develop` was created from `main` with `--no-ff` merges of `feature/member-1-auth`, `feature/member2-referrals-ussd` and `frontend-setup`. All authorship is preserved, and all 13 tests pass.

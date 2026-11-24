@@ -16,21 +16,26 @@ from pathlib import Path
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-load_dotenv(BASE_DIR / '.env')
+PROJECT_ROOT = BASE_DIR.parent
+
+# Support .env in either backend/ or the project root.
+load_dotenv(BASE_DIR / ".env")
+load_dotenv(PROJECT_ROOT / ".env")
+
+
+def env_list(name, default=""):
+    return [item.strip() for item in os.getenv(name, default).split(",") if item.strip()]
+
 
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
 
 if not SECRET_KEY:
     raise RuntimeError("DJANGO_SECRET_KEY is not set. Check your .env file.")
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv("DJANGO_DEBUG", "False").lower() == "true"
 
-ALLOWED_HOSTS = [
-    "localhost",
-    "127.0.0.1",
-    "uprising-snowbird-parish.ngrok-free.dev",
-
-]
+# Add your ngrok host here via .env, e.g. DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,xyz.ngrok-free.dev
+ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1")
 
 
 # Application definition
@@ -54,6 +59,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -147,3 +153,15 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
 }
+
+# Frontend (Vite dev server) origins allowed to call the API.
+CORS_ALLOWED_ORIGINS = env_list(
+    "CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
+)
+
+# Africa's Talking (USSD + SMS). Use the sandbox for the demo.
+AT_USERNAME = os.getenv("AT_USERNAME", "sandbox")
+AT_API_KEY = os.getenv("AT_API_KEY", "")
+AT_SENDER_ID = os.getenv("AT_SENDER_ID", "")
+# When False, SMS messages are printed to the console instead of sent.
+SMS_ENABLED = os.getenv("SMS_ENABLED", "False").lower() == "true"
