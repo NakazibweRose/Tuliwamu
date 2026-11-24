@@ -1,5 +1,5 @@
 from rest_framework import generics
-from rest_framework.permissions import AllowAny, IsAuthenticated,BasePermission
+from rest_framework.permissions import BasePermission, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -7,7 +7,6 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from .models import Institution, User
 from .serializers import (
     InstitutionSerializer,
-    CommunityRegistrationSerializer,
     CustomTokenObtainPairSerializer,
     StaffAccountCreationSerializer,
     StaffAccountListSerializer,
@@ -27,12 +26,6 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
 
-class CommunityRegistrationView(generics.CreateAPIView):
-    queryset = User.objects.all()
-    serializer_class = CommunityRegistrationSerializer
-    permission_classes = [AllowAny]
-
-
 class StaffAccountCreationView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = StaffAccountCreationSerializer
@@ -43,9 +36,7 @@ class StaffAccountListView(generics.ListAPIView):
     permission_classes = [IsAdminUser]
 
     def get_queryset(self):
-        return User.objects.exclude(
-            role__in=[User.Role.ADMIN, User.Role.COMMUNITY]
-        ).order_by("role", "username")
+        return User.objects.filter(role__in=User.STAFF_ROLES).order_by("role", "username")
 
 class StaffAccountStatusView(generics.UpdateAPIView):
     serializer_class = StaffAccountStatusSerializer
@@ -53,9 +44,7 @@ class StaffAccountStatusView(generics.UpdateAPIView):
     http_method_names = ["patch", "options", "head"]
 
     def get_queryset(self):
-        return User.objects.exclude(
-            role__in=[User.Role.ADMIN, User.Role.COMMUNITY]
-        )
+        return User.objects.filter(role__in=User.STAFF_ROLES)
 
 class StaffRoleUpdateView(generics.UpdateAPIView):
     serializer_class = StaffRoleUpdateSerializer
@@ -63,9 +52,7 @@ class StaffRoleUpdateView(generics.UpdateAPIView):
     http_method_names = ["patch", "options", "head"]
 
     def get_queryset(self):
-        return User.objects.exclude(
-            role__in=[User.Role.ADMIN, User.Role.COMMUNITY]
-        )
+        return User.objects.filter(role__in=User.STAFF_ROLES)
               
 class UserProfileView(APIView):
     permission_classes = [IsAuthenticated]
